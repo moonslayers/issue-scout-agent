@@ -2,8 +2,8 @@ import { Templates, Labels } from '../../../../src/shared/templates/scout-templa
 
 describe('ScoutTemplates', () => {
   describe('Templates', () => {
-    it('should have all 6 templates defined', () => {
-      expect(Object.keys(Templates)).toHaveLength(6);
+    it('should have all 8 templates defined', () => {
+      expect(Object.keys(Templates)).toHaveLength(8);
     });
 
     it('each template should have id, title and build', () => {
@@ -37,10 +37,7 @@ describe('ScoutTemplates', () => {
       it('should build the plan comment with title and body', () => {
         const result = Templates.PLAN.build('My plan body');
         expect(result).toContain(Templates.PLAN.title);
-        expect(result).toContain('🤖 Plan Técnico Generado por Issue Scout');
         expect(result).toContain('My plan body');
-        expect(result).toContain('Issue Scout Agent');
-        expect(result).toContain('github.com/moonslayers/issue-scout-agent');
       });
     });
 
@@ -93,6 +90,28 @@ describe('ScoutTemplates', () => {
         expect(result).toContain(Templates.INVESTIGATE_CONFIRM.title);
         expect(result).toContain('✅ **Investigación actualizada**');
         expect(result).toContain('user module');
+        expect(result).toContain('Issue Scout Agent');
+      });
+    });
+
+    describe('UPDATE_NO_CHANGES', () => {
+      it('should build no-changes info with timestamp', () => {
+        const result = Templates.UPDATE_NO_CHANGES.build('2026-06-05 12:00');
+        expect(result).toContain(Templates.UPDATE_NO_CHANGES.title);
+        expect(result).toContain('ℹ️ **Verificación de cambios**');
+        expect(result).toContain('2026-06-05 12:00');
+        expect(result).toContain('No se detectaron cambios nuevos');
+        expect(result).toContain('Issue Scout Agent');
+      });
+    });
+
+    describe('UPDATE_NOT_RELEVANT', () => {
+      it('should build not-relevant info with timestamp and reason', () => {
+        const result = Templates.UPDATE_NOT_RELEVANT.build('2026-06-05 12:00', 'Solo cambios de formato');
+        expect(result).toContain(Templates.UPDATE_NOT_RELEVANT.title);
+        expect(result).toContain('ℹ️ **Verificación de cambios**');
+        expect(result).toContain('2026-06-05 12:00');
+        expect(result).toContain('Solo cambios de formato');
         expect(result).toContain('Issue Scout Agent');
       });
     });

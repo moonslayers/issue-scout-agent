@@ -10,6 +10,8 @@ import { SearchCodeTool } from '../../infrastructure/ai/tools/search-code.tool';
 import { GetFileTreeTool } from '../../infrastructure/ai/tools/get-file-tree.tool';
 import { GitDiffTool } from '../../infrastructure/ai/tools/git-diff.tool';
 import { EXPLORE_SYSTEM_PROMPT, GENERATE_SYSTEM_PROMPT } from '../../infrastructure/ai/prompts/system-prompt';
+import { UPDATE_SYSTEM_PROMPT } from '../../infrastructure/ai/prompts/update-plan-prompt';
+import { CompareCommitsResult } from '../interfaces/github-service.interface';
 
 type ErrorWithCause = Error & { cause?: unknown };
 
@@ -169,6 +171,40 @@ export class AgentService {
     }
   }
 
+  async updatePlanWithDiff(
+    originalPlan: string,
+    diff: CompareCommitsResult,
+    issueTitle: string,
+    issueBody: string
+  ): Promise<{ response: string; wasUpdate: boolean; wasRelevant: boolean; message?: string }> {
+    this.logger.info('Starting incremental plan update', {
+      filesChanged: diff.files.length,
+      aheadBy: diff.aheadBy,
+    });
+
+    const model = ProviderFactory.create(this.config);
+
+    try {
+      const result = await generateText({
+        model,
+        system: UPDATE_SYSTEM_PROMPT,
+        prompt: this.buildUpdatePrompt(originalPlan, diff, issueTitle, issueBody),
+        // Sin tools - el trabajo pesado ya está hecho (diff via API)
+        temperature: this.config.AI_TEMPERATURE,
+        providerOptions: this.providerOptions,
+      });
+
+      return this.parseUpdateResult(result.text?.trim() ?? '');
+    } catch (error) {
+      this.logger.error('AI update plan call failed', {
+        error: error instanceof Error ? error.message : String(error),
+        provider: this.config.AI_PROVIDER,
+        model: this.config.AI_MODEL,
+      });
+      throw error;
+    }
+  }
+
   private buildExplorePrompt(title: string, body: string): string {
     return `## Issue a Investigar\n\n**Título:** ${title}\n\n**Descripción:** ${body || 'Sin descripción proporcionada'}\n\nExplora el código del repositorio para entender este issue. Usa las herramientas disponibles para encontrar archivos relevantes, leer su contenido y comprender las relaciones entre componentes. Al final, proporciona un resumen de tus hallazgos.`;
   }
@@ -189,6 +225,61 @@ export class AgentService {
     }
 
     return `## Comando: ${command}\n\n**Contexto del Issue:**\n**Título:** ${title}\n**Descripción:** ${body || 'Sin descripción'}\n\nResponde al comando del usuario basado en el contexto del issue y el código del repositorio.`;
+  }
+
+  private buildUpdatePrompt(
+    originalPlan: string,
+    diff: CompareCommitsResult,
+    issueTitle: string,
+    issueBody: string
+  ): string {
+    // Construir resumen legible del diff
+    let diffText = `## Resumen\n${diff.summary}\n\n## Archivos cambiados\n`;
+    for (const file of diff.files) {
+      const changeSymbol = file.status === 'added' ? '➕' : file.status === 'removed' ? '➖' : '✏️';
+      diffText += `${changeSymbol} \`${file.filename}\` (${file.status}, +${file.additions} -${file.deletions})\n`;
+
+      if (file.patch) {
+        const lines = file.patch.split('\n');
+        // Truncar patches muy largos a 50 líneas para ahorrar tokens
+        const patchText = lines.length > 50
+          ? lines.slice(0, 50).join('\n') + '\n... (truncado, más líneas no mostradas)'
+          : file.patch;
+        diffText += `\`\`\`diff\n${patchText}\n\`\`\`\n`;
+      }
+    }
+
+    return `## Comando: /update - Actualización incremental del plan\n\n**Issue:** ${issueTitle}\n\n**Descripción original:** ${issueBody || 'Sin descripción'}\n\n### Plan Original\n${originalPlan}\n\n### Cambios detectados en el repositorio\n${diffText}\n\n### Instrucciones\nAnaliza el plan original contra los cambios detectados.\nSi los cambios son relevantes, genera el plan actualizado.\nSi no son relevantes, responde RELEVANCE:NO.`;
+  }
+
+  private parseUpdateResult(text: string): { response: string; wasUpdate: boolean; wasRelevant: boolean; message?: string } {
+    if (text.startsWith('RELEVANCE:NO')) {
+      const message = text.replace('RELEVANCE:NO', '').replace(/^\s*\|\s*/, '').trim();
+      return {
+        response: '',
+        wasUpdate: false,
+        wasRelevant: false,
+        message: message || 'Los cambios detectados no son relevantes para el plan actual.',
+      };
+    }
+
+    if (text.startsWith('RELEVANCE:YES')) {
+      const plan = text.replace('RELEVANCE:YES', '').trim();
+      return {
+        response: plan,
+        wasUpdate: true,
+        wasRelevant: true,
+      };
+    }
+
+    // Fallback: formato no reconocido, asumir que es el plan actualizado
+    this.logger.warn('Unexpected format from AI update', { preview: text.substring(0, 200) });
+    return {
+      response: text,
+      wasUpdate: true,
+      wasRelevant: true,
+      message: 'Formato de respuesta no reconocido, se usó el texto completo.',
+    };
   }
 
   private buildTools() {

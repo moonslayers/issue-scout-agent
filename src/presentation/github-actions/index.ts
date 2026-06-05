@@ -6,6 +6,8 @@ import { AgentService } from '../../application/services/agent.service';
 import { GitHubServiceAdapter } from '../../infrastructure/github/github-service.adapter';
 import { InvestigateIssueUseCase } from '../../application/use-cases/investigate-issue.use-case';
 import { HandleCommandUseCase } from '../../application/use-cases/handle-command.use-case';
+import { GitInfoService } from '../../infrastructure/git/git-info.service';
+import { PlanCommentParser } from '../../infrastructure/github/plan-comment-parser';
 import fs from 'fs';
 
 async function run(): Promise<void> {
@@ -46,6 +48,8 @@ async function run(): Promise<void> {
   // Inicializar servicios
   const agentService = new AgentService(config, logger);
   const githubService = new GitHubServiceAdapter(config.GITHUB_TOKEN, logger);
+  const gitInfoService = new GitInfoService();
+  const planCommentParser = new PlanCommentParser();
 
   // Verificar que el código del repositorio esté disponible en el filesystem
   const hasCode = fs.existsSync('package.json') || fs.existsSync('src/');
@@ -60,13 +64,17 @@ async function run(): Promise<void> {
   const handleCommandUseCase = new HandleCommandUseCase(
     agentService,
     githubService,
-    logger
+    logger,
+    gitInfoService,
+    planCommentParser
   );
   const investigateUseCase = new InvestigateIssueUseCase(
     agentService,
     githubService,
     logger,
-    config
+    config,
+    gitInfoService,
+    planCommentParser
   );
 
   const context = github.context;

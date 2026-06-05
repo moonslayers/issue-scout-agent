@@ -1,5 +1,5 @@
 import { Octokit } from '@octokit/rest';
-import { IGitHubService, ReactionContent } from '../../application/interfaces/github-service.interface';
+import { IGitHubService, ReactionContent, CompareCommitsResult } from '../../application/interfaces/github-service.interface';
 import { ILogger } from '../../shared/logger/logger.interface';
 import { Templates } from '../../shared/templates/scout-templates';
 
@@ -175,5 +175,44 @@ export class GitHubServiceAdapter implements IGitHubService {
       id: comment.id,
       body: comment.body || '',
     }));
+  }
+
+  async compareCommits(
+    owner: string,
+    repo: string,
+    base: string,
+    head: string
+  ): Promise<CompareCommitsResult> {
+    try {
+      const { data } = await this.octokit.repos.compareCommits({
+        owner,
+        repo,
+        base,
+        head,
+      });
+
+      const files = (data.files || []).map((f) => ({
+        filename: f.filename,
+        status: f.status as CompareCommitsResult['files'][0]['status'],
+        additions: f.additions,
+        deletions: f.deletions,
+        patch: f.patch,
+      }));
+
+      const summary = `${data.total_commits} commits, ${files.length} archivos cambiados`;
+
+      return { files, summary, aheadBy: data.ahead_by };
+    } catch (error) {
+      this.logger.warn('Error al comparar commits', {
+        base,
+        head,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw new Error(
+        `No se pudieron comparar los commits ${base}...${head}: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
   }
 }

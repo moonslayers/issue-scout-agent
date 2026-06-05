@@ -4,6 +4,8 @@ import { IGitHubService } from '../interfaces/github-service.interface';
 import { ILogger } from '../../shared/logger/logger.interface';
 import { EnvConfig } from '../../shared/config/environment.config';
 import { Templates, Labels } from '../../shared/templates/scout-templates';
+import { GitInfoService } from '../../infrastructure/git/git-info.service';
+import { PlanCommentParser } from '../../infrastructure/github/plan-comment-parser';
 
 type ErrorWithCause = Error & { cause?: unknown };
 
@@ -12,7 +14,9 @@ export class InvestigateIssueUseCase {
     private readonly agentService: AgentService,
     private readonly githubService: IGitHubService,
     private readonly logger: ILogger,
-    private readonly config: EnvConfig
+    private readonly config: EnvConfig,
+    private readonly gitInfoService: GitInfoService,
+    private readonly planCommentParser: PlanCommentParser
   ) {}
 
   async execute(
@@ -32,12 +36,18 @@ export class InvestigateIssueUseCase {
       // Ejecutar agente
       const plan = await this.agentService.investigate(title, body);
 
+      // Obtener commit hash actual para el version tracker
+      const currentHash = this.gitInfoService.getCurrentHeadHash();
+
+      // Construir plan completo con version tracker (estilo Persistent review)
+      const fullPlan = this.planCommentParser.buildPlanWithTracker(plan, currentHash, []);
+
       // Publicar comentario con el plan
       const comment = await this.githubService.createComment(
         owner,
         repo,
         issueNumber.getValue(),
-        Templates.PLAN.build(plan)
+        fullPlan
       );
 
       // Agregar label de investigado

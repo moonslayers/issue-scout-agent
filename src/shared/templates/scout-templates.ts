@@ -25,7 +25,7 @@ export const Templates = {
     id: 'plan',
     title: '<!-- scout:plan -->',
     build: (body: string): string =>
-      `<!-- scout:plan -->\n## 🤖 Plan Técnico Generado por Issue Scout\n\n${body}${SCOUT_BRANDING}`,
+      `<!-- scout:plan -->\n${body}`,
   } as ScoutTemplate,
 
   /** Template de respuesta a /ask */
@@ -66,6 +66,22 @@ export const Templates = {
     title: '<!-- scout:investigate:confirm -->',
     build: (component: string): string =>
       `<!-- scout:investigate:confirm -->\n✅ **Investigación actualizada** con el análisis de "${component}".${SCOUT_BRANDING}`,
+  } as ScoutTemplate,
+
+  /** Template cuando /update no detecta cambios en el repositorio */
+  UPDATE_NO_CHANGES: {
+    id: 'update-no-changes',
+    title: '<!-- scout:update:no-changes -->',
+    build: (now: string): string =>
+      `<!-- scout:update:no-changes -->\nℹ️ **Verificación de cambios** — ${now} UTC\n\nNo se detectaron cambios nuevos en el código del repositorio. El plan actual sigue siendo válido.${SCOUT_BRANDING}`,
+  } as ScoutTemplate,
+
+  /** Template cuando /update detecta cambios pero no son relevantes para el plan */
+  UPDATE_NOT_RELEVANT: {
+    id: 'update-not-relevant',
+    title: '<!-- scout:update:not-relevant -->',
+    build: (now: string, reason: string): string =>
+      `<!-- scout:update:not-relevant -->\nℹ️ **Verificación de cambios** — ${now} UTC\n\nSe detectaron cambios en el repositorio, pero no afectan el plan actual.\n\n**Razón:** ${reason}${SCOUT_BRANDING}`,
   } as ScoutTemplate,
 } as const;
 
