@@ -39,7 +39,8 @@ describe('ScoutTemplates', () => {
         expect(result).toContain(Templates.PLAN.title);
         expect(result).toContain('🤖 Plan Técnico Generado por Issue Scout');
         expect(result).toContain('My plan body');
-        expect(result).toContain('Este plan es orientativo');
+        expect(result).toContain('Issue Scout Agent');
+        expect(result).toContain('github.com/moonslayers/issue-scout-agent');
       });
     });
 
@@ -49,6 +50,7 @@ describe('ScoutTemplates', () => {
         expect(result).toContain(Templates.REPLY.title);
         expect(result).toContain('🤖 Respuesta de Issue Scout');
         expect(result).toContain('My reply');
+        expect(result).toContain('Issue Scout Agent');
       });
     });
 
@@ -59,6 +61,7 @@ describe('ScoutTemplates', () => {
         expect(result).toContain('❌ **Error durante la investigación:**');
         expect(result).toContain('Something went wrong');
         expect(result).toContain('Revisa los logs');
+        expect(result).toContain('Issue Scout Agent');
       });
     });
 
@@ -69,6 +72,7 @@ describe('ScoutTemplates', () => {
         expect(result).toContain('❌ **Error al procesar el comando');
         expect(result).toContain('/update');
         expect(result).toContain('Timeout');
+        expect(result).toContain('Issue Scout Agent');
       });
     });
 
@@ -79,6 +83,7 @@ describe('ScoutTemplates', () => {
         expect(result).toContain('✅ **Plan actualizado**');
         expect(result).toContain('2026-06-05 12:00');
         expect(result).toContain('re-generado');
+        expect(result).toContain('Issue Scout Agent');
       });
     });
 
@@ -88,6 +93,7 @@ describe('ScoutTemplates', () => {
         expect(result).toContain(Templates.INVESTIGATE_CONFIRM.title);
         expect(result).toContain('✅ **Investigación actualizada**');
         expect(result).toContain('user module');
+        expect(result).toContain('Issue Scout Agent');
       });
     });
   });

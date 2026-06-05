@@ -19688,7 +19688,7 @@ var require_token_io = __commonJS({
     });
     module2.exports = __toCommonJS(token_io_exports);
     var import_path = __toESM2(require("path"));
-    var import_fs4 = __toESM2(require("fs"));
+    var import_fs5 = __toESM2(require("fs"));
     var import_os4 = __toESM2(require("os"));
     var import_token_error = require_token_error();
     function findRootDir() {
@@ -19696,7 +19696,7 @@ var require_token_io = __commonJS({
         let dir = process.cwd();
         while (dir !== import_path.default.dirname(dir)) {
           const pkgPath = import_path.default.join(dir, ".vercel");
-          if (import_fs4.default.existsSync(pkgPath)) {
+          if (import_fs5.default.existsSync(pkgPath)) {
             return dir;
           }
           dir = import_path.default.dirname(dir);
@@ -19767,7 +19767,7 @@ var require_auth_config = __commonJS({
       writeAuthConfig: () => writeAuthConfig
     });
     module2.exports = __toCommonJS(auth_config_exports);
-    var fs3 = __toESM2(require("fs"));
+    var fs4 = __toESM2(require("fs"));
     var path = __toESM2(require("path"));
     var import_token_util = require_token_util();
     function getAuthConfigPath() {
@@ -19782,10 +19782,10 @@ var require_auth_config = __commonJS({
     function readAuthConfig() {
       try {
         const authPath = getAuthConfigPath();
-        if (!fs3.existsSync(authPath)) {
+        if (!fs4.existsSync(authPath)) {
           return null;
         }
-        const content = fs3.readFileSync(authPath, "utf8");
+        const content = fs4.readFileSync(authPath, "utf8");
         if (!content) {
           return null;
         }
@@ -19797,10 +19797,10 @@ var require_auth_config = __commonJS({
     function writeAuthConfig(config2) {
       const authPath = getAuthConfigPath();
       const authDir = path.dirname(authPath);
-      if (!fs3.existsSync(authDir)) {
-        fs3.mkdirSync(authDir, { mode: 504, recursive: true });
+      if (!fs4.existsSync(authDir)) {
+        fs4.mkdirSync(authDir, { mode: 504, recursive: true });
       }
-      fs3.writeFileSync(authPath, JSON.stringify(config2, null, 2), { mode: 384 });
+      fs4.writeFileSync(authPath, JSON.stringify(config2, null, 2), { mode: 384 });
     }
     function isValidAccessToken(authConfig, expirationBufferMs = 0) {
       if (!authConfig.token)
@@ -19992,7 +19992,7 @@ var require_token_util = __commonJS({
     });
     module2.exports = __toCommonJS(token_util_exports);
     var path = __toESM2(require("path"));
-    var fs3 = __toESM2(require("fs"));
+    var fs4 = __toESM2(require("fs"));
     var import_token_error = require_token_error();
     var import_token_io = require_token_io();
     var import_auth_config = require_auth_config();
@@ -20081,12 +20081,12 @@ var require_token_util = __commonJS({
         );
       }
       const prjPath = path.join(dir, ".vercel", "project.json");
-      if (!fs3.existsSync(prjPath)) {
+      if (!fs4.existsSync(prjPath)) {
         throw new import_token_error.VercelOidcTokenError(
           "project.json not found, have you linked your project with `vc link?`"
         );
       }
-      const prj = JSON.parse(fs3.readFileSync(prjPath, "utf8"));
+      const prj = JSON.parse(fs4.readFileSync(prjPath, "utf8"));
       if (typeof prj.projectId !== "string" && typeof prj.orgId !== "string") {
         throw new TypeError(
           "Expected a string-valued projectId property. Try running `vc link` to re-link your project."
@@ -20103,9 +20103,9 @@ var require_token_util = __commonJS({
       }
       const tokenPath = path.join(dir, "com.vercel.token", `${projectId}.json`);
       const tokenJson = JSON.stringify(token);
-      fs3.mkdirSync(path.dirname(tokenPath), { mode: 504, recursive: true });
-      fs3.writeFileSync(tokenPath, tokenJson);
-      fs3.chmodSync(tokenPath, 432);
+      fs4.mkdirSync(path.dirname(tokenPath), { mode: 504, recursive: true });
+      fs4.writeFileSync(tokenPath, tokenJson);
+      fs4.chmodSync(tokenPath, 432);
       return;
     }
     function loadToken(projectId) {
@@ -20116,10 +20116,10 @@ var require_token_util = __commonJS({
         );
       }
       const tokenPath = path.join(dir, "com.vercel.token", `${projectId}.json`);
-      if (!fs3.existsSync(tokenPath)) {
+      if (!fs4.existsSync(tokenPath)) {
         return null;
       }
-      const token = JSON.parse(fs3.readFileSync(tokenPath, "utf8"));
+      const token = JSON.parse(fs4.readFileSync(tokenPath, "utf8"));
       assertVercelOidcTokenResponse(token);
       return token;
     }
@@ -62996,10 +62996,10 @@ var GitDiffTool = class {
 };
 
 // src/infrastructure/ai/prompts/system-prompt.ts
-var SYSTEM_PROMPT = `Eres Issue Scout, un agente de IA especializado en analizar issues de GitHub y generar planes t\xE9cnicos detallados.
+var SYSTEM_PROMPT = `Eres Issue Scout, un agente de IA especializado en investigar issues de GitHub para entregar an\xE1lisis \xFAtiles que ayuden al equipo a decidir y ejecutar.
 
 ## Tu objetivo
-Investigar el c\xF3digo del repositorio para entender el problema descrito en el issue y generar un plan de implementaci\xF3n claro y accionable.
+Investigar el c\xF3digo del repositorio para entender a fondo el problema o solicitud del issue, identificar todos los archivos y m\xF3dulos involucrados, orientar al equipo sobre la mejor estrategia, y proponer un plan de implementaci\xF3n claro.
 
 ## Herramientas disponibles
 Tienes acceso a herramientas para explorar el c\xF3digo:
@@ -63010,42 +63010,59 @@ Tienes acceso a herramientas para explorar el c\xF3digo:
 - gitDiff: Obtiene el diff de git entre dos versiones
 
 ## Proceso de investigaci\xF3n
-1. Analiza el t\xEDtulo y descripci\xF3n del issue
-2. Identifica keywords y componentes mencionados
-3. Usa las herramientas para explorar el c\xF3digo relevante
-4. Lee archivos clave para entender la estructura
-5. Genera un plan t\xE9cnico con archivos afectados y pasos de implementaci\xF3n
+1. Analiza el t\xEDtulo y descripci\xF3n del issue para identificar el componente o funcionalidad involucrada
+2. Rastrea el componente: d\xF3nde se define, d\xF3nde se consume, qu\xE9 lo referencia (vistas, APIs, reportes, servicios, tests)
+3. Lee los archivos clave para entender la l\xF3gica y las relaciones
+4. Identifica patrones y dependencias para dimensionar el alcance real del cambio
+5. Basado en la exploraci\xF3n, define cu\xE1l ser\xEDa el mejor enfoque con sus ventajas y desventajas
+6. Prop\xF3n un plan de implementaci\xF3n concreto con los archivos a modificar
 
 ## Formato de respuesta
 Responde en espa\xF1ol con este formato:
 
-##  An\xE1lisis del Issue
-[Breve interpretaci\xF3n del problema]
+## \u{1F50D} Investigaci\xF3n
+[Resumen de lo que encontraste: qu\xE9 hace el componente, d\xF3nde est\xE1, por qu\xE9 est\xE1 involucrado]
 
-## \u{1F4CD} Archivos Afectados
-- \`ruta/archivo.ts\` - [por qu\xE9 se ve afectado]
-- \`ruta/config.json\` - [por qu\xE9 se ve afectado]
+### \u{1F4E6} Archivos involucrados
+- \`ruta/archivo.ts\` \u2014 [qu\xE9 hace y por qu\xE9 se modificar\xEDa]
+- \`ruta/api.ts\` \u2014 [si aplica: endpoints que cambiar\xEDan]
+- \`ruta/reporte.ts\` \u2014 [si aplica: reportes que lo referencian]
+- \`ruta/test.spec.ts\` \u2014 [tests existentes relevantes]
 
-## \u{1F527} Plan de Implementaci\xF3n
-1. [Paso t\xE9cnico concreto]
-2. [Paso t\xE9cnico concreto]
-3. [Paso t\xE9cnico concreto]
+### \u{1F4CA} Alcance del cambio
+- **Archivos a modificar:** [n\xFAmero]
+- **M\xF3dulos afectados:** [lista]
+- **Esfuerzo:** \u{1F7E2} Muy poco | \u{1F7E2} Poco | \u{1F7E1} Medio | \u{1F7E0} Alto | \u{1F534} Muy alto
+- **Estimaci\xF3n:** [X] horas de desarrollo (realista, no inflada)
 
-## \u26A0\uFE0F Consideraciones
-- [Tests necesarios]
-- [Riesgos o dependencias]
+## \u{1F4A1} Estrategia sugerida
+[Explicaci\xF3n clara del enfoque recomendado basado en lo que encontraste en la investigaci\xF3n]
 
-## \u{1F680} Siguiente Paso
-[Una acci\xF3n clara para empezar]
+### Ventajas y desventajas
+| Ventajas | Desventajas |
+|----------|-------------|
+| [ventaja 1] | [desventaja 1] |
+| [ventaja 2] | [desventaja 2] |
+
+## \u{1F680} Plan de implementaci\xF3n
+1. [Paso concreto con archivo o m\xF3dulo]
+2. [Paso concreto]
+3. [Paso concreto]
 
 ## Reglas importantes
-- S\xE9 espec\xEDfico con nombres de archivos y funciones
-- No inventes archivos que no existen. Usa las herramientas para verificar
-- Si no encuentras informaci\xF3n relevante, dilo expl\xEDcitamente
-- Usa las herramientas antes de hacer afirmaciones sobre el c\xF3digo
-- Si el issue es vago, pide m\xE1s contexto al desarrollador
-- No sugieras cambios que modifiquen archivos sin haberlos le\xEDdo antes
-- Cuando uses /update, re-investiga el c\xF3digo actualizado ya que pueden haber cambiado archivos desde la \xFAltima revisi\xF3n`;
+- S\xE9 espec\xEDfico con nombres de archivos y funciones. No inventes nada que no hayas verificado con las herramientas.
+- Si el issue es vago o le falta contexto, p\xEDdelo expl\xEDcitamente al desarrollador.
+- Si encuentras deuda t\xE9cnica en la zona que valga la pena considerar, menci\xF3nala como observaci\xF3n.
+- La investigaci\xF3n, la estrategia y el plan tienen el mismo peso. No es solo generar un plan, es dar contexto para decidir informadamente.
+- La estimaci\xF3n de horas debe ser realista. Por ejemplo: un cambio simple de un campo en un formulario con sus validaciones puede ser 2-4 horas. Un cambio que toca API + servicio + base de datos + tests puede ser 8-16 horas. No infles ni minimices.
+
+## Si no encuentras el c\xF3digo del repositorio
+Si tus herramientas de exploraci\xF3n (listDir, readFile, searchCode, getFileTree, gitDiff) no encuentran archivos del repositorio:
+
+1. NO generes an\xE1lisis ni inventes informaci\xF3n. Sin acceso al c\xF3digo real no puedes hacer tu trabajo.
+2. NO intentes clonar el repositorio con git ni uses comandos externos. Tus \xFAnicas herramientas son las 5 listadas arriba.
+3. En tu respuesta, explica claramente al usuario que el c\xF3digo no est\xE1 disponible y sugiere agregar \`actions/checkout@v4\` antes de usar el Issue Scout Agent.
+`;
 
 // src/application/services/agent.service.ts
 var AgentService = class {
@@ -63251,6 +63268,72 @@ var Octokit2 = Octokit.plugin(requestLog, legacyRestEndpointMethods, paginateRes
   }
 );
 
+// src/shared/templates/scout-templates.ts
+var SCOUT_BRANDING = `
+
+---
+*\u{1F575}\uFE0F Generado por [Issue Scout Agent](https://github.com/moonslayers/issue-scout-agent)*`;
+var Templates = {
+  /** Template del plan técnico principal (investigación inicial, /update, /investigate) */
+  PLAN: {
+    id: "plan",
+    title: "<!-- scout:plan -->",
+    build: (body) => `<!-- scout:plan -->
+## \u{1F916} Plan T\xE9cnico Generado por Issue Scout
+
+${body}${SCOUT_BRANDING}`
+  },
+  /** Template de respuesta a /ask */
+  REPLY: {
+    id: "reply",
+    title: "<!-- scout:reply -->",
+    build: (body) => `<!-- scout:reply -->
+## \u{1F916} Respuesta de Issue Scout
+
+${body}${SCOUT_BRANDING}`
+  },
+  /** Template de error cuando falla la investigación inicial */
+  ERROR_INVESTIGATION: {
+    id: "error-investigation",
+    title: "<!-- scout:error:investigation -->",
+    build: (errorMessage) => `<!-- scout:error:investigation -->
+\u274C **Error durante la investigaci\xF3n:**
+
+${errorMessage}
+
+*Revisa los logs del Action para m\xE1s detalles.*${SCOUT_BRANDING}`
+  },
+  /** Template de error cuando falla un comando (/ask, /update, /investigate) */
+  ERROR_COMMAND: {
+    id: "error-command",
+    title: "<!-- scout:error:command -->",
+    build: (commandType, errorMessage) => `<!-- scout:error:command -->
+\u274C **Error al procesar el comando \\\`${commandType}\\\`:**
+
+${errorMessage}${SCOUT_BRANDING}`
+  },
+  /** Template de confirmación de /update exitoso */
+  UPDATE_CONFIRM: {
+    id: "update-confirm",
+    title: "<!-- scout:update:confirm -->",
+    build: (now2) => `<!-- scout:update:confirm -->
+\u2705 **Plan actualizado** \u2014 ${now2} UTC
+
+El plan ha sido re-generado con el c\xF3digo m\xE1s reciente del repositorio.${SCOUT_BRANDING}`
+  },
+  /** Template de confirmación de /investigate exitoso */
+  INVESTIGATE_CONFIRM: {
+    id: "investigate-confirm",
+    title: "<!-- scout:investigate:confirm -->",
+    build: (component) => `<!-- scout:investigate:confirm -->
+\u2705 **Investigaci\xF3n actualizada** con el an\xE1lisis de "${component}".${SCOUT_BRANDING}`
+  }
+};
+var Labels = {
+  SCOUT_INVESTIGATED: "scout-investigated",
+  PLAN_UPDATED: "plan-updated"
+};
+
 // src/infrastructure/github/github-service.adapter.ts
 var GitHubServiceAdapter = class {
   constructor(token, logger) {
@@ -63266,7 +63349,7 @@ var GitHubServiceAdapter = class {
       owner,
       repo,
       issue_number: issueNumber,
-      body: this.wrapPlan(body)
+      body: Templates.PLAN.build(body)
     });
     return { id: data.id };
   }
@@ -63275,7 +63358,7 @@ var GitHubServiceAdapter = class {
       owner,
       repo,
       comment_id: commentId,
-      body: this.wrapPlan(body)
+      body: Templates.PLAN.build(body)
     });
   }
   async replyToComment(_owner, _repo, commentId, body) {
@@ -63283,9 +63366,7 @@ var GitHubServiceAdapter = class {
       owner: _owner,
       repo: _repo,
       issue_number: commentId,
-      body: `## \u{1F916} Respuesta de Issue Scout
-
-${body}`
+      body: Templates.REPLY.build(body)
     });
   }
   async reactToIssue(owner, repo, issueNumber, reaction) {
@@ -63366,13 +63447,16 @@ ${body}`
       labels: data.labels.map((l) => typeof l === "string" ? l : l.name || "")
     };
   }
-  wrapPlan(body) {
-    return `## \u{1F916} Plan T\xE9cnico Generado por Issue Scout
-
-${body}
-
----
-*Este plan es orientativo. Verifica rutas y nombres de archivos antes de implementar.*`;
+  async getIssueComments(owner, repo, issueNumber) {
+    const { data } = await this.octokit.issues.listComments({
+      owner,
+      repo,
+      issue_number: issueNumber
+    });
+    return data.map((comment) => ({
+      id: comment.id,
+      body: comment.body || ""
+    }));
   }
 };
 
@@ -63416,7 +63500,6 @@ var InvestigateIssueUseCase = class {
   githubService;
   logger;
   config;
-  planCommentId = null;
   async execute(owner, repo, issueNumberValue, title, body) {
     const issueNumber = new IssueNumber(issueNumberValue);
     this.logger.info("Investigating issue", { issueNumber: issueNumber.toString(), title });
@@ -63429,8 +63512,7 @@ var InvestigateIssueUseCase = class {
         issueNumber.getValue(),
         plan
       );
-      this.planCommentId = comment.id;
-      await this.githubService.addLabel(owner, repo, issueNumber.getValue(), "scout-investigated");
+      await this.githubService.addLabel(owner, repo, issueNumber.getValue(), Labels.SCOUT_INVESTIGATED);
       this.logger.info("Issue investigation completed", {
         issueNumber: issueNumber.toString(),
         commentId: comment.id
@@ -63447,17 +63529,10 @@ var InvestigateIssueUseCase = class {
         owner,
         repo,
         issueNumber.getValue(),
-        `\u274C **Error durante la investigaci\xF3n:**
-
-${error41 instanceof Error ? error41.message : "Error desconocido"}
-
-*Revisa los logs del Action para m\xE1s detalles.*`
+        Templates.ERROR_INVESTIGATION.build(error41 instanceof Error ? error41.message : "Error desconocido")
       );
       throw error41;
     }
-  }
-  getLastPlanCommentId() {
-    return this.planCommentId;
   }
 };
 
@@ -63508,13 +63583,6 @@ var HandleCommandUseCase = class {
   agentService;
   githubService;
   logger;
-  storedPlanCommentId = null;
-  /**
-   * Almacena el ID del comentario del plan para que /update pueda modificarlo.
-   */
-  setPlanCommentId(commentId) {
-    this.storedPlanCommentId = commentId;
-  }
   async execute(owner, repo, issueNumberValue, commentBody, issueTitle, issueBody, commentId) {
     const issueNumber = new IssueNumber(issueNumberValue);
     const command = Command2.parse(commentBody);
@@ -63546,9 +63614,7 @@ var HandleCommandUseCase = class {
         owner,
         repo,
         issueNumber.getValue(),
-        `\u274C **Error al procesar el comando \`${command.type}\`:**
-
-${error41 instanceof Error ? error41.message : "Error desconocido"}`
+        Templates.ERROR_COMMAND.build(command.type, error41 instanceof Error ? error41.message : "Error desconocido")
       );
     }
   }
@@ -63556,27 +63622,26 @@ ${error41 instanceof Error ? error41.message : "Error desconocido"}`
     this.logger.info("Handling /update command");
     await this.githubService.reactToComment(owner, repo, triggerCommentId, "eyes");
     const updatedPlan = await this.agentService.handleCommand("/update", issueTitle, issueBody);
-    if (this.storedPlanCommentId) {
-      await this.githubService.updateComment(owner, repo, this.storedPlanCommentId, updatedPlan.response);
+    const comments = await this.githubService.getIssueComments(owner, repo, issueNumber.getValue());
+    const planComment = comments.find((c) => c.body.includes(Templates.PLAN.title));
+    if (planComment) {
+      await this.githubService.updateComment(owner, repo, planComment.id, updatedPlan.response);
     } else {
-      const newComment = await this.githubService.createComment(
+      await this.githubService.createComment(
         owner,
         repo,
         issueNumber.getValue(),
         updatedPlan.response
       );
-      this.storedPlanCommentId = newComment.id;
     }
     const now2 = (/* @__PURE__ */ new Date()).toISOString().replace("T", " ").substring(0, 19);
     await this.githubService.createComment(
       owner,
       repo,
       issueNumber.getValue(),
-      `\u2705 **Plan actualizado** \u2014 ${now2} UTC
-
-El plan ha sido re-generado con el c\xF3digo m\xE1s reciente del repositorio.`
+      Templates.UPDATE_CONFIRM.build(now2)
     );
-    await this.githubService.addLabel(owner, repo, issueNumber.getValue(), "plan-updated");
+    await this.githubService.addLabel(owner, repo, issueNumber.getValue(), Labels.PLAN_UPDATED);
     this.logger.info("Plan updated successfully", { issueNumber: issueNumber.toString() });
   }
   async handleAsk(owner, repo, issueNumber, issueTitle, issueBody, triggerCommentId, args) {
@@ -63594,27 +63659,29 @@ El plan ha sido re-generado con el c\xF3digo m\xE1s reciente del repositorio.`
     this.logger.info("Handling /investigate command", { args });
     await this.githubService.reactToComment(owner, repo, triggerCommentId, "eyes");
     const result = await this.agentService.handleCommand(`/investigate ${args}`, issueTitle, issueBody);
-    if (this.storedPlanCommentId) {
-      await this.githubService.updateComment(owner, repo, this.storedPlanCommentId, result.response);
+    const comments = await this.githubService.getIssueComments(owner, repo, issueNumber.getValue());
+    const planComment = comments.find((c) => c.body.includes(Templates.PLAN.title));
+    if (planComment) {
+      await this.githubService.updateComment(owner, repo, planComment.id, result.response);
     } else {
-      const newComment = await this.githubService.createComment(
+      await this.githubService.createComment(
         owner,
         repo,
         issueNumber.getValue(),
         result.response
       );
-      this.storedPlanCommentId = newComment.id;
     }
     await this.githubService.createComment(
       owner,
       repo,
       issueNumber.getValue(),
-      `\u2705 **Investigaci\xF3n actualizada** con el an\xE1lisis de "${args}".`
+      Templates.INVESTIGATE_CONFIRM.build(args)
     );
   }
 };
 
 // src/presentation/github-actions/index.ts
+var import_fs4 = __toESM(require("fs"), 1);
 async function run() {
   const config2 = loadConfig({
     // Required
@@ -63644,6 +63711,13 @@ async function run() {
   });
   const agentService = new AgentService(config2, logger);
   const githubService = new GitHubServiceAdapter(config2.GITHUB_TOKEN, logger);
+  const hasCode = import_fs4.default.existsSync("package.json") || import_fs4.default.existsSync("src/");
+  if (!hasCode) {
+    logger.warn("\u26A0\uFE0F No se encontr\xF3 c\xF3digo del repositorio en el directorio de trabajo. Aseg\xFArate de incluir actions/checkout@v4 ANTES de usar moonslayers/issue-scout-agent en tu workflow.", {
+      hint: "Agrega: - uses: actions/checkout@v4",
+      cwd: process.cwd()
+    });
+  }
   const handleCommandUseCase = new HandleCommandUseCase(
     agentService,
     githubService,
@@ -63666,10 +63740,6 @@ async function run() {
       const body = issue3.body || "";
       logger.info("\u{1F4DD} New issue detected", { issueNumber, title });
       await investigateUseCase.execute(owner, repo, issueNumber, title, body);
-      const planCommentId = investigateUseCase.getLastPlanCommentId();
-      if (planCommentId) {
-        handleCommandUseCase.setPlanCommentId(planCommentId);
-      }
     } else if (context4.eventName === "issue_comment" && payload.action === "created") {
       const comment = payload.comment;
       const issue3 = payload.issue;
@@ -63687,10 +63757,6 @@ async function run() {
         commentId,
         commandPreview: commentBody.substring(0, 50)
       });
-      const previousPlanId = investigateUseCase.getLastPlanCommentId();
-      if (previousPlanId) {
-        handleCommandUseCase.setPlanCommentId(previousPlanId);
-      }
       await handleCommandUseCase.execute(
         owner,
         repo,
