@@ -59,13 +59,13 @@ DEBUG_PROMPTS=false     # dumps full AI response text
 Tests inject fake env vars (`AI_API_KEY=sk-test-key`, `AI_PROVIDER=openai`, `AI_MODEL=gpt-4-turbo`) in `test.yml`.
 
 ## AI tools (all synchronous — `execSync`/`readFileSync`)
-| Tool | Backend |
-|------|--------|
-| `listDir` | `find <path> -maxdepth <N> -type 2>/dev/null \| head -100` |
-| `readFile` | `fs.readFileSync` (truncates head 50 / tail 20 for large files) |
-| `searchCode` | `rg <pattern>` → `path:line:content` |
-| `getFileTree` | `find <path>` → full tree |
-| `gitDiff` | `git diff <base>..<head>` |
+| Tool          | Backend                                                         |
+| ------------- | --------------------------------------------------------------- |
+| `listDir`     | `find <path> -maxdepth <N> -type 2>/dev/null \| head -100`      |
+| `readFile`    | `fs.readFileSync` (truncates head 50 / tail 20 for large files) |
+| `searchCode`  | `rg <pattern>` → `path:line:content`                            |
+| `getFileTree` | `find <path>` → full tree                                       |
+| `gitDiff`     | `git diff <base>..<head>`                                       |
 
 ## Testing
 - Unit tests: `tests/unit/domain/`, `tests/unit/infrastructure/`.
@@ -81,3 +81,6 @@ Tests inject fake env vars (`AI_API_KEY=sk-test-key`, `AI_PROVIDER=openai`, `AI_
 - Spanish/English bilingual: strings/comments in Spanish, var/function names in English.
 - System prompt in Spanish (`infrastructure/ai/prompts/system-prompt.ts`).
 - Comments wrapped with `wrapPlan()` (private in `GitHubServiceAdapter`): header `🤖 Plan Técnico Generado por Issue Scout` + footer disclaimer.
+
+## ALWAYS DO:
+- siempre que termines una tarea valida que corran todas las pruebas, el lint y que compile antes de decir que ya esta terminado
