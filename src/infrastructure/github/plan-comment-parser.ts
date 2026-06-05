@@ -1,3 +1,5 @@
+import { SCOUT_BRANDING } from '../../shared/templates/scout-templates';
+
 export interface VersionEntry {
   commit: string;
   version: number;
@@ -30,8 +32,8 @@ export class PlanCommentParser {
    * Extrae SOLO el cuerpo del plan (sin marker, sin version tracker).
    */
   extractPlanBody(fullBody: string): string {
-    // Quitar marker <!-- scout:plan -->
-    let body = fullBody.replace(/<!--\s*scout:plan\s*-->\n?/, '');
+    // Quitar marker <!-- scout:plan --> y header visual
+    let body = fullBody.replace(/<!--\s*scout:plan\s*-->\n## 🤖 Plan Técnico Generado por Issue Scout\n+/, '');
 
     // Quitar version tracker desde 🕵️ **Scout Report** hasta el final
     body = body.replace(/\n?🕵️\s+\*\*Scout Report\*\*[\s\S]*$/, '');
@@ -68,7 +70,7 @@ export class PlanCommentParser {
       .join('; ');
     tracker += `\n<!-- scout:versions: ${machineData} -->`;
 
-    return `<!-- scout:plan -->\n${body}${tracker}`;
+    return `<!-- scout:plan -->\n## 🤖 Plan Técnico Generado por Issue Scout\n\n${body}${tracker}${SCOUT_BRANDING}`;
   }
 
   /**
