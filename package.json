@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "type": "module",
   "scripts": {
-    "build": "tsc --noEmit && esbuild src/presentation/github-actions/index.ts --bundle --platform=node --target=node20 --outfile=dist/index.js --log-level=warning",
+    "build": "tsc --noEmit && esbuild src/presentation/github-actions/index.ts --bundle --platform=node --target=node20 --outfile=dist/index.cjs --log-level=warning",
     "dev": "ts-node src/presentation/github-actions/index.ts",
     "test": "jest",
     "test:unit": "jest tests/unit",
