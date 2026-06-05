@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { EnvConfig } from '../../shared/config/environment.config';
 import { ILogger } from '../../shared/logger/logger.interface';
 import { ProviderFactory } from '../../infrastructure/ai/provider-factory';
+import { ProviderOptionsMap, resolveProviderOptions } from '../../infrastructure/ai/provider-options';
 import { ListDirTool } from '../../infrastructure/ai/tools/list-dir.tool';
 import { ReadFileTool } from '../../infrastructure/ai/tools/read-file.tool';
 import { SearchCodeTool } from '../../infrastructure/ai/tools/search-code.tool';
@@ -19,10 +20,14 @@ export class AgentService {
   private readonly getFileTreeTool = new GetFileTreeTool();
   private readonly gitDiffTool = new GitDiffTool();
 
+  private readonly providerOptions: ProviderOptionsMap;
+
   constructor(
     private readonly config: EnvConfig,
     private readonly logger: ILogger
-  ) {}
+  ) {
+    this.providerOptions = resolveProviderOptions(config.AI_PROVIDER_OPTIONS);
+  }
 
   async investigate(issueTitle: string, issueBody: string): Promise<string> {
     this.logger.info('Starting investigation', { title: issueTitle });
@@ -44,6 +49,7 @@ export class AgentService {
         tools: this.buildTools(),
         stopWhen: stepCountIs(999),
         temperature: this.config.AI_TEMPERATURE,
+        providerOptions: this.providerOptions,
       });
 
       const context = exploreResult.text?.trim() || 'No se generó resumen de exploración.';
@@ -78,6 +84,7 @@ export class AgentService {
           prompt: this.buildGeneratePlanPrompt(issueTitle, issueBody, context, attempt > 1),
           // Sin tools - todo el presupuesto va al texto
           temperature: this.config.AI_TEMPERATURE,
+          providerOptions: this.providerOptions,
         });
 
         plan = planResult.text?.trim() ?? '';
@@ -122,6 +129,7 @@ export class AgentService {
         tools: this.buildTools(),
         stopWhen: stepCountIs(999),
         temperature: this.config.AI_TEMPERATURE,
+        providerOptions: this.providerOptions,
       });
 
       let response = result.text?.trim() ?? '';
@@ -137,6 +145,7 @@ export class AgentService {
           system: GENERATE_SYSTEM_PROMPT,
           prompt: `El comando anterior no generó respuesta. Usando este contexto:\n\nTítulo: ${issueTitle}\nDescripción: ${issueBody || 'Sin descripción'}\n\nComando: ${command}\n\nResponde AHORA sin usar herramientas.`,
           temperature: this.config.AI_TEMPERATURE,
+          providerOptions: this.providerOptions,
         });
 
         response = retryResult.text?.trim() ?? '';

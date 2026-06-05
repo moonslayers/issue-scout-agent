@@ -6,6 +6,7 @@ const envSchema = z.object({
   AI_API_KEY: z.string().min(1, 'AI_API_KEY is required'),
   AI_BASE_URL: z.string().url().optional(),
   AI_MODEL: z.string().min(1, 'AI_MODEL is required'),
+  AI_PROVIDER_OPTIONS: z.string().optional(),
 
   // AI Behavior
   AI_TEMPERATURE: z.coerce.number().min(0).max(2).default(0.3),

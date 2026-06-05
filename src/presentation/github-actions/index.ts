@@ -31,6 +31,7 @@ async function run(): Promise<void> {
 
     // Optional without defaults (empty string → undefined para que Zod use .optional())
     AI_BASE_URL: core.getInput('ai_base_url') || undefined,
+    AI_PROVIDER_OPTIONS: core.getInput('ai_provider_options') || undefined,
   });
 
   const logger = new ConsoleLogger(config);

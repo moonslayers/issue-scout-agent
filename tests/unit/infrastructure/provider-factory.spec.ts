@@ -9,6 +9,7 @@ describe('ProviderFactory', () => {
     AI_BASE_URL: 'https://api.openai.com/v1',
     AI_TEMPERATURE: 0.3,
     AI_TIMEOUT: 60,
+    AI_PROVIDER_OPTIONS: undefined,
     GITHUB_TOKEN: 'test-token',
     GITHUB_REPOSITORY_OWNER: 'test-owner',
     GITHUB_REPOSITORY_NAME: 'test-repo',

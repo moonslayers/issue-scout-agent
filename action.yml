@@ -28,6 +28,9 @@ inputs:
     description: 'GitHub Token'
     required: false
     default: ${{ github.token }}
+  ai_provider_options:
+    description: 'Opciones específicas del proveedor AI en formato JSON (ej: {"deepseek":{"thinking":{"type":"adaptive"},"reasoningEffort":"medium"}})'
+    required: false
   log_level:
     description: 'Log level (debug, info, warn, error)'
     required: false
