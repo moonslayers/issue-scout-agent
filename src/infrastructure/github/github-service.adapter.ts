@@ -23,7 +23,7 @@ export class GitHubServiceAdapter implements IGitHubService {
       owner,
       repo,
       issue_number: issueNumber,
-      body: Templates.PLAN.build(body),
+      body: body,
     });
     return { id: data.id };
   }
@@ -38,7 +38,7 @@ export class GitHubServiceAdapter implements IGitHubService {
       owner,
       repo,
       comment_id: commentId,
-      body: Templates.PLAN.build(body),
+      body: body,
     });
   }
 

@@ -51,7 +51,7 @@ describe('GitHubServiceAdapter', () => {
           owner: 'owner',
           repo: 'repo',
           issue_number: 1,
-          body: expect.stringContaining('Plan Técnico'),
+          body: 'Test plan',
         })
       );
       expect(result.id).toBe(123);
@@ -69,7 +69,7 @@ describe('GitHubServiceAdapter', () => {
           owner: 'owner',
           repo: 'repo',
           comment_id: 456,
-          body: expect.stringContaining('Plan Técnico'),
+          body: 'Updated plan',
         })
       );
     });

@@ -37,7 +37,7 @@ export class InvestigateIssueUseCase {
         owner,
         repo,
         issueNumber.getValue(),
-        plan
+        Templates.PLAN.build(plan)
       );
 
       // Agregar label de investigado

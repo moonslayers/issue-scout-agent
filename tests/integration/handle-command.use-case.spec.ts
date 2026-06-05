@@ -2,6 +2,7 @@ import { HandleCommandUseCase } from '../../src/application/use-cases/handle-com
 import { AgentService } from '../../src/application/services/agent.service';
 import { IGitHubService } from '../../src/application/interfaces/github-service.interface';
 import { ILogger } from '../../src/shared/logger/logger.interface';
+import { Templates } from '../../src/shared/templates/scout-templates';
 
 // Mocks
 const mockAgentService = {
@@ -72,7 +73,7 @@ describe('HandleCommandUseCase Integration', () => {
 
       // 3. Debe actualizar el comentario original del plan
       expect(mockGitHubService.updateComment).toHaveBeenCalledWith(
-        'owner', 'repo', 42, 'Updated plan analysis'
+        'owner', 'repo', 42, Templates.PLAN.build('Updated plan analysis')
       );
 
       // 4. Debe comentar confirmación
@@ -116,7 +117,7 @@ describe('HandleCommandUseCase Integration', () => {
 
       expect(mockGitHubService.reactToComment).toHaveBeenCalled();
       expect(mockGitHubService.createComment).toHaveBeenCalledWith(
-        'owner', 'repo', 1, 'Answer to the question'
+        'owner', 'repo', 1, Templates.REPLY.build('Answer to the question')
       );
     });
   });
@@ -137,7 +138,7 @@ describe('HandleCommandUseCase Integration', () => {
 
       expect(mockGitHubService.reactToComment).toHaveBeenCalled();
       expect(mockGitHubService.updateComment).toHaveBeenCalledWith(
-        'owner', 'repo', 42, 'Investigation results'
+        'owner', 'repo', 42, Templates.PLAN.build('Investigation results')
       );
     });
   });

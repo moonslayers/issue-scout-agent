@@ -84,13 +84,13 @@ export class HandleCommandUseCase {
     const planComment = comments.find(c => c.body.includes(Templates.PLAN.title));
 
     if (planComment) {
-      await this.githubService.updateComment(owner, repo, planComment.id, updatedPlan.response);
+      await this.githubService.updateComment(owner, repo, planComment.id, Templates.PLAN.build(updatedPlan.response));
     } else {
       await this.githubService.createComment(
         owner,
         repo,
         issueNumber.getValue(),
-        updatedPlan.response
+        Templates.PLAN.build(updatedPlan.response)
       );
     }
 
@@ -131,7 +131,7 @@ export class HandleCommandUseCase {
       owner,
       repo,
       issueNumber.getValue(),
-      result.response
+      Templates.REPLY.build(result.response)
     );
   }
 
@@ -157,13 +157,13 @@ export class HandleCommandUseCase {
     const planComment = comments.find(c => c.body.includes(Templates.PLAN.title));
 
     if (planComment) {
-      await this.githubService.updateComment(owner, repo, planComment.id, result.response);
+      await this.githubService.updateComment(owner, repo, planComment.id, Templates.PLAN.build(result.response));
     } else {
       await this.githubService.createComment(
         owner,
         repo,
         issueNumber.getValue(),
-        result.response
+        Templates.PLAN.build(result.response)
       );
     }
 
