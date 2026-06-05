@@ -1,5 +1,6 @@
 import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
+import { createDeepSeek } from '@ai-sdk/deepseek';
 import { LanguageModel } from 'ai';
 import { EnvConfig } from '../../shared/config/environment.config';
 
@@ -10,10 +11,15 @@ export class ProviderFactory {
         return createOpenAI({
           apiKey: config.AI_API_KEY,
           baseURL: config.AI_BASE_URL || 'https://api.openai.com/v1',
-        })(config.AI_MODEL);
+        }).chat(config.AI_MODEL);
 
       case 'anthropic':
         return createAnthropic({
+          apiKey: config.AI_API_KEY,
+        })(config.AI_MODEL);
+
+      case 'deepseek':
+        return createDeepSeek({
           apiKey: config.AI_API_KEY,
         })(config.AI_MODEL);
 
@@ -24,7 +30,7 @@ export class ProviderFactory {
         return createOpenAI({
           apiKey: config.AI_API_KEY,
           baseURL: config.AI_BASE_URL,
-        })(config.AI_MODEL);
+        }).chat(config.AI_MODEL);
 
       default:
         throw new Error(`Unsupported AI provider: ${config.AI_PROVIDER}`);

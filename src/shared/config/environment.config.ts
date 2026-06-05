@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 const envSchema = z.object({
   // AI Provider
-  AI_PROVIDER: z.enum(['openai', 'anthropic', 'custom']).default('openai'),
+  AI_PROVIDER: z.enum(['openai', 'anthropic', 'deepseek', 'custom']).default('openai'),
   AI_API_KEY: z.string().min(1, 'AI_API_KEY is required'),
   AI_BASE_URL: z.string().url().optional(),
   AI_MODEL: z.string().min(1, 'AI_MODEL is required'),
