@@ -3,22 +3,14 @@ import { IssueNumber } from '../../domain/value-objects/issue-number.vo';
 import { AgentService } from '../services/agent.service';
 import { IGitHubService } from '../interfaces/github-service.interface';
 import { ILogger } from '../../shared/logger/logger.interface';
+import { Templates, Labels } from '../../shared/templates/scout-templates';
 
 export class HandleCommandUseCase {
-  private storedPlanCommentId: number | null = null;
-
   constructor(
     private readonly agentService: AgentService,
     private readonly githubService: IGitHubService,
     private readonly logger: ILogger
   ) {}
-
-  /**
-   * Almacena el ID del comentario del plan para que /update pueda modificarlo.
-   */
-  setPlanCommentId(commentId: number | null): void {
-    this.storedPlanCommentId = commentId;
-  }
 
   async execute(
     owner: string,
@@ -64,7 +56,7 @@ export class HandleCommandUseCase {
         owner,
         repo,
         issueNumber.getValue(),
-        `❌ **Error al procesar el comando \`${command.type}\`:**\n\n${error instanceof Error ? error.message : 'Error desconocido'}`
+        Templates.ERROR_COMMAND.build(command.type, error instanceof Error ? error.message : 'Error desconocido')
       );
     }
   }
@@ -85,18 +77,19 @@ export class HandleCommandUseCase {
     // 2. Re-ejecutar investigación
     const updatedPlan = await this.agentService.handleCommand('/update', issueTitle, issueBody);
 
-    // 3. Si tenemos el ID del comentario original, actualizarlo
-    if (this.storedPlanCommentId) {
-      await this.githubService.updateComment(owner, repo, this.storedPlanCommentId, updatedPlan.response);
+    // 3. Buscar el plan comment existente y actualizarlo
+    const comments = await this.githubService.getIssueComments(owner, repo, issueNumber.getValue());
+    const planComment = comments.find(c => c.body.includes(Templates.PLAN.title));
+
+    if (planComment) {
+      await this.githubService.updateComment(owner, repo, planComment.id, updatedPlan.response);
     } else {
-      // Si no tenemos el ID (por ejemplo, el plan original se perdió), crear nuevo comentario
-      const newComment = await this.githubService.createComment(
+      await this.githubService.createComment(
         owner,
         repo,
         issueNumber.getValue(),
         updatedPlan.response
       );
-      this.storedPlanCommentId = newComment.id;
     }
 
     // 4. Comentar confirmación
@@ -105,11 +98,11 @@ export class HandleCommandUseCase {
       owner,
       repo,
       issueNumber.getValue(),
-      `✅ **Plan actualizado** — ${now} UTC\n\nEl plan ha sido re-generado con el código más reciente del repositorio.`
+      Templates.UPDATE_CONFIRM.build(now)
     );
 
     // 5. Agregar label de actualizado
-    await this.githubService.addLabel(owner, repo, issueNumber.getValue(), 'plan-updated');
+    await this.githubService.addLabel(owner, repo, issueNumber.getValue(), Labels.PLAN_UPDATED);
 
     this.logger.info('Plan updated successfully', { issueNumber: issueNumber.toString() });
   }
@@ -157,24 +150,26 @@ export class HandleCommandUseCase {
     // Investigar componente específico
     const result = await this.agentService.handleCommand(`/investigate ${args}`, issueTitle, issueBody);
 
-    // Actualizar el plan original
-    if (this.storedPlanCommentId) {
-      await this.githubService.updateComment(owner, repo, this.storedPlanCommentId, result.response);
+    // Buscar el plan comment existente y actualizarlo
+    const comments = await this.githubService.getIssueComments(owner, repo, issueNumber.getValue());
+    const planComment = comments.find(c => c.body.includes(Templates.PLAN.title));
+
+    if (planComment) {
+      await this.githubService.updateComment(owner, repo, planComment.id, result.response);
     } else {
-      const newComment = await this.githubService.createComment(
+      await this.githubService.createComment(
         owner,
         repo,
         issueNumber.getValue(),
         result.response
       );
-      this.storedPlanCommentId = newComment.id;
     }
 
     await this.githubService.createComment(
       owner,
       repo,
       issueNumber.getValue(),
-      `✅ **Investigación actualizada** con el análisis de "${args}".`
+      Templates.INVESTIGATE_CONFIRM.build(args)
     );
   }
 }

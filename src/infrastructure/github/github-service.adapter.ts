@@ -1,6 +1,7 @@
 import { Octokit } from '@octokit/rest';
 import { IGitHubService } from '../../application/interfaces/github-service.interface';
 import { ILogger } from '../../shared/logger/logger.interface';
+import { Templates } from '../../shared/templates/scout-templates';
 
 export class GitHubServiceAdapter implements IGitHubService {
   private readonly octokit: Octokit;
@@ -22,7 +23,7 @@ export class GitHubServiceAdapter implements IGitHubService {
       owner,
       repo,
       issue_number: issueNumber,
-      body: this.wrapPlan(body),
+      body: Templates.PLAN.build(body),
     });
     return { id: data.id };
   }
@@ -37,7 +38,7 @@ export class GitHubServiceAdapter implements IGitHubService {
       owner,
       repo,
       comment_id: commentId,
-      body: this.wrapPlan(body),
+      body: Templates.PLAN.build(body),
     });
   }
 
@@ -51,7 +52,7 @@ export class GitHubServiceAdapter implements IGitHubService {
       owner: _owner,
       repo: _repo,
       issue_number: commentId,
-      body: `## 🤖 Respuesta de Issue Scout\n\n${body}`,
+      body: Templates.REPLY.build(body),
     });
   }
 
@@ -162,7 +163,19 @@ export class GitHubServiceAdapter implements IGitHubService {
     };
   }
 
-  private wrapPlan(body: string): string {
-    return `## 🤖 Plan Técnico Generado por Issue Scout\n\n${body}\n\n---\n*Este plan es orientativo. Verifica rutas y nombres de archivos antes de implementar.*`;
+  async getIssueComments(
+    owner: string,
+    repo: string,
+    issueNumber: number
+  ): Promise<Array<{ id: number; body: string }>> {
+    const { data } = await this.octokit.issues.listComments({
+      owner,
+      repo,
+      issue_number: issueNumber,
+    });
+    return data.map(comment => ({
+      id: comment.id,
+      body: comment.body || '',
+    }));
   }
 }

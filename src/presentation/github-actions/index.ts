@@ -6,6 +6,7 @@ import { AgentService } from '../../application/services/agent.service';
 import { GitHubServiceAdapter } from '../../infrastructure/github/github-service.adapter';
 import { InvestigateIssueUseCase } from '../../application/use-cases/investigate-issue.use-case';
 import { HandleCommandUseCase } from '../../application/use-cases/handle-command.use-case';
+import fs from 'fs';
 
 async function run(): Promise<void> {
   // Pasar inputs de GitHub Actions a loadConfig como overrides
@@ -47,7 +48,16 @@ async function run(): Promise<void> {
   const agentService = new AgentService(config, logger);
   const githubService = new GitHubServiceAdapter(config.GITHUB_TOKEN, logger);
 
-  // Inicializar casos de uso (comparten el planCommentId a través del HandleCommandUseCase)
+  // Verificar que el código del repositorio esté disponible en el filesystem
+  const hasCode = fs.existsSync('package.json') || fs.existsSync('src/');
+  if (!hasCode) {
+    logger.warn('⚠️ No se encontró código del repositorio en el directorio de trabajo. Asegúrate de incluir actions/checkout@v4 ANTES de usar moonslayers/issue-scout-agent en tu workflow.', {
+      hint: 'Agrega: - uses: actions/checkout@v4',
+      cwd: process.cwd(),
+    });
+  }
+
+  // Inicializar casos de uso
   const handleCommandUseCase = new HandleCommandUseCase(
     agentService,
     githubService,
@@ -77,12 +87,6 @@ async function run(): Promise<void> {
       logger.info('📝 New issue detected', { issueNumber, title });
 
       await investigateUseCase.execute(owner, repo, issueNumber, title, body);
-
-      // Compartir el ID del comentario del plan con el command handler
-      const planCommentId = investigateUseCase.getLastPlanCommentId();
-      if (planCommentId) {
-        handleCommandUseCase.setPlanCommentId(planCommentId);
-      }
     }
 
     // ============================================
@@ -108,12 +112,6 @@ async function run(): Promise<void> {
         commentId,
         commandPreview: commentBody.substring(0, 50),
       });
-
-      // Compartir el planCommentId si existe de una ejecución anterior
-      const previousPlanId = investigateUseCase.getLastPlanCommentId();
-      if (previousPlanId) {
-        handleCommandUseCase.setPlanCommentId(previousPlanId);
-      }
 
       await handleCommandUseCase.execute(
         owner,

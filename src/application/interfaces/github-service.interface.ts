@@ -7,4 +7,9 @@ export interface IGitHubService {
   addLabel(owner: string, repo: string, issueNumber: number, label: string): Promise<void>;
   removeLabel(owner: string, repo: string, issueNumber: number, label: string): Promise<void>;
   getIssue(owner: string, repo: string, issueNumber: number): Promise<{ title: string; body: string; labels: string[] }>;
+  getIssueComments(
+    owner: string,
+    repo: string,
+    issueNumber: number
+  ): Promise<Array<{ id: number; body: string }>>;
 }

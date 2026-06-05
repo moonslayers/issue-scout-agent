@@ -3,10 +3,9 @@ import { AgentService } from '../services/agent.service';
 import { IGitHubService } from '../interfaces/github-service.interface';
 import { ILogger } from '../../shared/logger/logger.interface';
 import { EnvConfig } from '../../shared/config/environment.config';
+import { Templates, Labels } from '../../shared/templates/scout-templates';
 
 export class InvestigateIssueUseCase {
-  private planCommentId: number | null = null;
-
   constructor(
     private readonly agentService: AgentService,
     private readonly githubService: IGitHubService,
@@ -38,10 +37,9 @@ export class InvestigateIssueUseCase {
         issueNumber.getValue(),
         plan
       );
-      this.planCommentId = comment.id;
 
       // Agregar label de investigado
-      await this.githubService.addLabel(owner, repo, issueNumber.getValue(), 'scout-investigated');
+      await this.githubService.addLabel(owner, repo, issueNumber.getValue(), Labels.SCOUT_INVESTIGATED);
 
       this.logger.info('Issue investigation completed', {
         issueNumber: issueNumber.toString(),
@@ -61,14 +59,10 @@ export class InvestigateIssueUseCase {
         owner,
         repo,
         issueNumber.getValue(),
-        `❌ **Error durante la investigación:**\n\n${error instanceof Error ? error.message : 'Error desconocido'}\n\n*Revisa los logs del Action para más detalles.*`
+        Templates.ERROR_INVESTIGATION.build(error instanceof Error ? error.message : 'Error desconocido')
       );
 
       throw error;
     }
-  }
-
-  getLastPlanCommentId(): number | null {
-    return this.planCommentId;
   }
 }

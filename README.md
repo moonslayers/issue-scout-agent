@@ -38,6 +38,7 @@ jobs:
       issues: write
       contents: read
     steps:
+      - uses: actions/checkout@v4
       - uses: moonslayers/issue-scout-agent@v1
         with:
           ai_provider: openai
@@ -48,6 +49,7 @@ jobs:
 **Anthropic:**
 ```yaml
 steps:
+  - uses: actions/checkout@v4
   - uses: moonslayers/issue-scout-agent@v1
     with:
       ai_provider: anthropic
@@ -58,6 +60,7 @@ steps:
 **DeepSeek (nativo):**
 ```yaml
 steps:
+  - uses: actions/checkout@v4
   - uses: moonslayers/issue-scout-agent@v1
     with:
       ai_provider: deepseek

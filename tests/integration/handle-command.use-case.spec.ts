@@ -18,6 +18,7 @@ const mockGitHubService: jest.Mocked<IGitHubService> = {
   addLabel: jest.fn(),
   removeLabel: jest.fn(),
   getIssue: jest.fn(),
+  getIssueComments: jest.fn(),
 };
 
 const mockLogger: ILogger = {
@@ -41,11 +42,13 @@ describe('HandleCommandUseCase Integration', () => {
 
   describe('/update command', () => {
     it('should react to comment, update plan, and add label', async () => {
-      useCase.setPlanCommentId(42);
       mockAgentService.handleCommand.mockResolvedValue({
         response: 'Updated plan analysis',
         wasUpdate: true,
       });
+      mockGitHubService.getIssueComments.mockResolvedValue([
+        { id: 42, body: '<!-- scout:plan -->\n## 🤖 Plan Técnico Generado por Issue Scout\n\nSome previous plan...' },
+      ]);
 
       await useCase.execute(
         'owner',
@@ -83,12 +86,13 @@ describe('HandleCommandUseCase Integration', () => {
       );
     });
 
-    it('should create new comment if no stored planCommentId', async () => {
+    it('should create new comment if no existing plan comment found', async () => {
       mockAgentService.handleCommand.mockResolvedValue({
         response: 'New plan',
         wasUpdate: true,
       });
       mockGitHubService.createComment.mockResolvedValue({ id: 999 });
+      mockGitHubService.getIssueComments.mockResolvedValue([]);
 
       await useCase.execute(
         'owner', 'repo', 1, '/update', 'Title', 'Body', 100
@@ -119,11 +123,13 @@ describe('HandleCommandUseCase Integration', () => {
 
   describe('/investigate command', () => {
     it('should react and update plan with investigation', async () => {
-      useCase.setPlanCommentId(42);
       mockAgentService.handleCommand.mockResolvedValue({
         response: 'Investigation results',
         wasUpdate: false,
       });
+      mockGitHubService.getIssueComments.mockResolvedValue([
+        { id: 42, body: '<!-- scout:plan -->\n## 🤖 Plan Técnico Generado por Issue Scout\n\nSome previous plan...' },
+      ]);
 
       await useCase.execute(
         'owner', 'repo', 1, '/investigate user module', 'Title', 'Body', 300
