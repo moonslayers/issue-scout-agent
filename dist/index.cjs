@@ -28520,6 +28520,7 @@ var envSchema = external_exports.object({
   AI_API_KEY: external_exports.string().min(1, "AI_API_KEY is required"),
   AI_BASE_URL: external_exports.string().url().optional(),
   AI_MODEL: external_exports.string().min(1, "AI_MODEL is required"),
+  AI_PROVIDER_OPTIONS: external_exports.string().optional(),
   // AI Behavior
   AI_TEMPERATURE: external_exports.coerce.number().min(0).max(2).default(0.3),
   AI_TIMEOUT: external_exports.coerce.number().int().positive().default(60),
@@ -62851,6 +62852,39 @@ var ProviderFactory = class {
   }
 };
 
+// src/infrastructure/ai/provider-options.ts
+var DEFAULT_PROVIDER_OPTIONS = {
+  deepseek: {
+    thinking: { type: "adaptive" },
+    reasoningEffort: "medium"
+  }
+};
+function deepMerge(target, source) {
+  const result = { ...target };
+  for (const key of Object.keys(source)) {
+    const existing = result[key];
+    const incoming = source[key];
+    if (existing && incoming && typeof existing === "object" && typeof incoming === "object" && !Array.isArray(existing) && !Array.isArray(incoming)) {
+      result[key] = { ...existing, ...incoming };
+    } else {
+      result[key] = incoming;
+    }
+  }
+  return result;
+}
+function resolveProviderOptions(rawOptions) {
+  let userOptions = {};
+  if (rawOptions) {
+    try {
+      userOptions = JSON.parse(rawOptions);
+    } catch {
+      console.warn(`[Issue Scout] Invalid AI_PROVIDER_OPTIONS JSON: ${rawOptions}. Using defaults.`);
+      return { ...DEFAULT_PROVIDER_OPTIONS };
+    }
+  }
+  return deepMerge({ ...DEFAULT_PROVIDER_OPTIONS }, userOptions);
+}
+
 // src/infrastructure/ai/tools/list-dir.tool.ts
 var import_child_process = require("child_process");
 var ListDirTool = class {
@@ -63081,11 +63115,53 @@ Lista los pasos en orden de ejecuci\xF3n. Cada paso debe ser ACCIONABLE y ESPEC\
 - Las ventajas y desventajas deben ser CONCRETAS y ESPEC\xCDFICAS del caso
 - La estimaci\xF3n debe ser REALISTA y justificada`;
 
+// src/infrastructure/ai/prompts/update-plan-prompt.ts
+var UPDATE_SYSTEM_PROMPT = `Eres Issue Scout, un agente de IA especializado en ACTUALIZAR planes t\xE9cnicos existentes de forma quir\xFArgica.
+
+## Contexto
+Recibes:
+1. **PLAN ORIGINAL:** El plan t\xE9cnico que ya existe (texto completo)
+2. **DIFF:** Los cambios en el c\xF3digo desde que se cre\xF3 el plan (archivos modificados, a\xF1adidos, eliminados)
+3. **ISSUE:** El t\xEDtulo y descripci\xF3n original del issue
+
+## Tu tarea
+Analiza si los cambios en el diff son RELEVANTES para el plan existente.
+
+- Si los cambios NO son relevantes \u2192 responde EXACTAMENTE (primera l\xEDnea):
+  RELEVANCE:NO | [explicaci\xF3n breve de por qu\xE9 no afecta el plan]
+
+- Si los cambios SON relevantes \u2192 responde EXACTAMENTE (primera l\xEDnea):
+  RELEVANCE:YES
+  [plan completo actualizado]
+
+## Reglas para actualizar el plan (solo cuando RELEVANCE:YES)
+- Modifica \xDANICAMENTE las secciones del plan que se ven afectadas por los cambios
+- Mant\xE9n TODO lo dem\xE1s ID\xC9NTICO al plan original (mismo texto, mismo formato)
+- Preserva la estructura y el formato exacto (secciones, emojis, t\xEDtulos, espaciado)
+- Si solo unos archivos cambiaron, actualiza solo esas entradas en la secci\xF3n de "Archivos involucrados"
+- Si el alcance cambi\xF3, actualiza "Alcance del cambio" y "Esfuerzo estimado"
+- Si los cambios introdujeron nueva deuda t\xE9cnica o riesgos, actualiza "Observaciones adicionales"
+- NO re-escribas el plan completo
+- NO agregues secciones nuevas a menos que los cambios lo requieran expl\xEDcitamente
+- NO uses herramientas - solo genera texto
+
+## Reglas de validaci\xF3n de relevancia
+- Cambios TRIVIALES (formato, espacios, comentarios, renombres internos, documentaci\xF3n): NO RELEVANTE
+- Cambios ESTRUCTURALES (l\xF3gica de negocio, APIs, interfaces, imports, nuevas funcionalidades, eliminaci\xF3n de archivos mencionados en el plan): RELEVANTE
+- Cambios en archivo NO mencionados en el plan: NO RELEVANTE (a menos que afecten una dependencia)
+- Si el plan menciona refactorizar un m\xF3dulo y ese m\xF3dulo cambi\xF3: RELEVANTE
+- Si el plan menciona agregar una feature y esa feature ya se implement\xF3: RELEVANTE (actualizar para reflejar que ya est\xE1 hecho)
+
+## Formato de respuesta
+SIEMPRE comienza con RELEVANCE:YES o RELEVANCE:NO como primera l\xEDnea.
+`;
+
 // src/application/services/agent.service.ts
 var AgentService = class {
   constructor(config2, logger) {
     this.config = config2;
     this.logger = logger;
+    this.providerOptions = resolveProviderOptions(config2.AI_PROVIDER_OPTIONS);
   }
   config;
   logger;
@@ -63094,6 +63170,7 @@ var AgentService = class {
   searchCodeTool = new SearchCodeTool();
   getFileTreeTool = new GetFileTreeTool();
   gitDiffTool = new GitDiffTool();
+  providerOptions;
   async investigate(issueTitle, issueBody) {
     this.logger.info("Starting investigation", { title: issueTitle });
     const model = ProviderFactory.create(this.config);
@@ -63105,7 +63182,8 @@ var AgentService = class {
         prompt: this.buildExplorePrompt(issueTitle, issueBody),
         tools: this.buildTools(),
         stopWhen: stepCountIs(999),
-        temperature: this.config.AI_TEMPERATURE
+        temperature: this.config.AI_TEMPERATURE,
+        providerOptions: this.providerOptions
       });
       const context4 = exploreResult.text?.trim() || "No se gener\xF3 resumen de exploraci\xF3n.";
       this.logger.info("Phase 1 completed", {
@@ -63128,7 +63206,8 @@ var AgentService = class {
           system: GENERATE_SYSTEM_PROMPT,
           prompt: this.buildGeneratePlanPrompt(issueTitle, issueBody, context4, attempt > 1),
           // Sin tools - todo el presupuesto va al texto
-          temperature: this.config.AI_TEMPERATURE
+          temperature: this.config.AI_TEMPERATURE,
+          providerOptions: this.providerOptions
         });
         plan = planResult.text?.trim() ?? "";
         if (!plan && attempt < maxAttempts) {
@@ -63165,7 +63244,8 @@ var AgentService = class {
         prompt: this.buildCommandPrompt(command, issueTitle, issueBody),
         tools: this.buildTools(),
         stopWhen: stepCountIs(999),
-        temperature: this.config.AI_TEMPERATURE
+        temperature: this.config.AI_TEMPERATURE,
+        providerOptions: this.providerOptions
       });
       let response = result.text?.trim() ?? "";
       let attempt = 0;
@@ -63183,7 +63263,8 @@ Descripci\xF3n: ${issueBody || "Sin descripci\xF3n"}
 Comando: ${command}
 
 Responde AHORA sin usar herramientas.`,
-          temperature: this.config.AI_TEMPERATURE
+          temperature: this.config.AI_TEMPERATURE,
+          providerOptions: this.providerOptions
         });
         response = retryResult.text?.trim() ?? "";
       }
@@ -63200,6 +63281,31 @@ Responde AHORA sin usar herramientas.`,
         provider: this.config.AI_PROVIDER,
         model: this.config.AI_MODEL,
         baseURL: this.config.AI_BASE_URL
+      });
+      throw error41;
+    }
+  }
+  async updatePlanWithDiff(originalPlan, diff, issueTitle, issueBody) {
+    this.logger.info("Starting incremental plan update", {
+      filesChanged: diff.files.length,
+      aheadBy: diff.aheadBy
+    });
+    const model = ProviderFactory.create(this.config);
+    try {
+      const result = await generateText({
+        model,
+        system: UPDATE_SYSTEM_PROMPT,
+        prompt: this.buildUpdatePrompt(originalPlan, diff, issueTitle, issueBody),
+        // Sin tools - el trabajo pesado ya está hecho (diff via API)
+        temperature: this.config.AI_TEMPERATURE,
+        providerOptions: this.providerOptions
+      });
+      return this.parseUpdateResult(result.text?.trim() ?? "");
+    } catch (error41) {
+      this.logger.error("AI update plan call failed", {
+        error: error41 instanceof Error ? error41.message : String(error41),
+        provider: this.config.AI_PROVIDER,
+        model: this.config.AI_MODEL
       });
       throw error41;
     }
@@ -63246,6 +63352,68 @@ El usuario ha solicitado actualizar el plan de implementaci\xF3n. Re-investiga e
 **Descripci\xF3n:** ${body || "Sin descripci\xF3n"}
 
 Responde al comando del usuario basado en el contexto del issue y el c\xF3digo del repositorio.`;
+  }
+  buildUpdatePrompt(originalPlan, diff, issueTitle, issueBody) {
+    let diffText = `## Resumen
+${diff.summary}
+
+## Archivos cambiados
+`;
+    for (const file2 of diff.files) {
+      const changeSymbol = file2.status === "added" ? "\u2795" : file2.status === "removed" ? "\u2796" : "\u270F\uFE0F";
+      diffText += `${changeSymbol} \`${file2.filename}\` (${file2.status}, +${file2.additions} -${file2.deletions})
+`;
+      if (file2.patch) {
+        const lines = file2.patch.split("\n");
+        const patchText = lines.length > 50 ? lines.slice(0, 50).join("\n") + "\n... (truncado, m\xE1s l\xEDneas no mostradas)" : file2.patch;
+        diffText += `\`\`\`diff
+${patchText}
+\`\`\`
+`;
+      }
+    }
+    return `## Comando: /update - Actualizaci\xF3n incremental del plan
+
+**Issue:** ${issueTitle}
+
+**Descripci\xF3n original:** ${issueBody || "Sin descripci\xF3n"}
+
+### Plan Original
+${originalPlan}
+
+### Cambios detectados en el repositorio
+${diffText}
+
+### Instrucciones
+Analiza el plan original contra los cambios detectados.
+Si los cambios son relevantes, genera el plan actualizado.
+Si no son relevantes, responde RELEVANCE:NO.`;
+  }
+  parseUpdateResult(text2) {
+    if (text2.startsWith("RELEVANCE:NO")) {
+      const message = text2.replace("RELEVANCE:NO", "").replace(/^\s*\|\s*/, "").trim();
+      return {
+        response: "",
+        wasUpdate: false,
+        wasRelevant: false,
+        message: message || "Los cambios detectados no son relevantes para el plan actual."
+      };
+    }
+    if (text2.startsWith("RELEVANCE:YES")) {
+      const plan = text2.replace("RELEVANCE:YES", "").trim();
+      return {
+        response: plan,
+        wasUpdate: true,
+        wasRelevant: true
+      };
+    }
+    this.logger.warn("Unexpected format from AI update", { preview: text2.substring(0, 200) });
+    return {
+      response: text2,
+      wasUpdate: true,
+      wasRelevant: true,
+      message: "Formato de respuesta no reconocido, se us\xF3 el texto completo."
+    };
   }
   buildTools() {
     return {
@@ -63356,9 +63524,7 @@ var Templates = {
     id: "plan",
     title: "<!-- scout:plan -->",
     build: (body) => `<!-- scout:plan -->
-## \u{1F916} Plan T\xE9cnico Generado por Issue Scout
-
-${body}${SCOUT_BRANDING}`
+${body}`
   },
   /** Template de respuesta a /ask */
   REPLY: {
@@ -63404,6 +63570,26 @@ El plan ha sido re-generado con el c\xF3digo m\xE1s reciente del repositorio.${S
     title: "<!-- scout:investigate:confirm -->",
     build: (component) => `<!-- scout:investigate:confirm -->
 \u2705 **Investigaci\xF3n actualizada** con el an\xE1lisis de "${component}".${SCOUT_BRANDING}`
+  },
+  /** Template cuando /update no detecta cambios en el repositorio */
+  UPDATE_NO_CHANGES: {
+    id: "update-no-changes",
+    title: "<!-- scout:update:no-changes -->",
+    build: (now2) => `<!-- scout:update:no-changes -->
+\u2139\uFE0F **Verificaci\xF3n de cambios** \u2014 ${now2} UTC
+
+No se detectaron cambios nuevos en el c\xF3digo del repositorio. El plan actual sigue siendo v\xE1lido.${SCOUT_BRANDING}`
+  },
+  /** Template cuando /update detecta cambios pero no son relevantes para el plan */
+  UPDATE_NOT_RELEVANT: {
+    id: "update-not-relevant",
+    title: "<!-- scout:update:not-relevant -->",
+    build: (now2, reason) => `<!-- scout:update:not-relevant -->
+\u2139\uFE0F **Verificaci\xF3n de cambios** \u2014 ${now2} UTC
+
+Se detectaron cambios en el repositorio, pero no afectan el plan actual.
+
+**Raz\xF3n:** ${reason}${SCOUT_BRANDING}`
   }
 };
 var Labels = {
@@ -63426,7 +63612,7 @@ var GitHubServiceAdapter = class {
       owner,
       repo,
       issue_number: issueNumber,
-      body: Templates.PLAN.build(body)
+      body
     });
     return { id: data.id };
   }
@@ -63435,7 +63621,7 @@ var GitHubServiceAdapter = class {
       owner,
       repo,
       comment_id: commentId,
-      body: Templates.PLAN.build(body)
+      body
     });
   }
   async replyToComment(_owner, _repo, commentId, body) {
@@ -63533,6 +63719,34 @@ var GitHubServiceAdapter = class {
       body: comment.body || ""
     }));
   }
+  async compareCommits(owner, repo, base, head) {
+    try {
+      const { data } = await this.octokit.repos.compareCommits({
+        owner,
+        repo,
+        base,
+        head
+      });
+      const files = (data.files || []).map((f) => ({
+        filename: f.filename,
+        status: f.status,
+        additions: f.additions,
+        deletions: f.deletions,
+        patch: f.patch
+      }));
+      const summary2 = `${data.total_commits} commits, ${files.length} archivos cambiados`;
+      return { files, summary: summary2, aheadBy: data.ahead_by };
+    } catch (error41) {
+      this.logger.warn("Error al comparar commits", {
+        base,
+        head,
+        error: error41 instanceof Error ? error41.message : String(error41)
+      });
+      throw new Error(
+        `No se pudieron comparar los commits ${base}...${head}: ${error41 instanceof Error ? error41.message : String(error41)}`
+      );
+    }
+  }
 };
 
 // src/domain/errors/domain.error.ts
@@ -63565,27 +63779,33 @@ var IssueNumber = class {
 
 // src/application/use-cases/investigate-issue.use-case.ts
 var InvestigateIssueUseCase = class {
-  constructor(agentService, githubService, logger, config2) {
+  constructor(agentService, githubService, logger, config2, gitInfoService, planCommentParser) {
     this.agentService = agentService;
     this.githubService = githubService;
     this.logger = logger;
     this.config = config2;
+    this.gitInfoService = gitInfoService;
+    this.planCommentParser = planCommentParser;
   }
   agentService;
   githubService;
   logger;
   config;
+  gitInfoService;
+  planCommentParser;
   async execute(owner, repo, issueNumberValue, title, body) {
     const issueNumber = new IssueNumber(issueNumberValue);
     this.logger.info("Investigating issue", { issueNumber: issueNumber.toString(), title });
     try {
       await this.githubService.reactToIssue(owner, repo, issueNumber.getValue(), "eyes");
       const plan = await this.agentService.investigate(title, body);
+      const currentHash = this.gitInfoService.getCurrentHeadHash();
+      const fullPlan = this.planCommentParser.buildPlanWithTracker(plan, currentHash, []);
       const comment = await this.githubService.createComment(
         owner,
         repo,
         issueNumber.getValue(),
-        plan
+        fullPlan
       );
       await this.githubService.addLabel(owner, repo, issueNumber.getValue(), Labels.SCOUT_INVESTIGATED);
       this.logger.info("Issue investigation completed", {
@@ -63650,14 +63870,18 @@ var Command2 = class _Command {
 
 // src/application/use-cases/handle-command.use-case.ts
 var HandleCommandUseCase = class {
-  constructor(agentService, githubService, logger) {
+  constructor(agentService, githubService, logger, gitInfoService, planCommentParser) {
     this.agentService = agentService;
     this.githubService = githubService;
     this.logger = logger;
+    this.gitInfoService = gitInfoService;
+    this.planCommentParser = planCommentParser;
   }
   agentService;
   githubService;
   logger;
+  gitInfoService;
+  planCommentParser;
   async execute(owner, repo, issueNumberValue, commentBody, issueTitle, issueBody, commentId) {
     const issueNumber = new IssueNumber(issueNumberValue);
     const command = Command2.parse(commentBody);
@@ -63696,20 +63920,112 @@ var HandleCommandUseCase = class {
   async handleUpdate(owner, repo, issueNumber, issueTitle, issueBody, triggerCommentId) {
     this.logger.info("Handling /update command");
     await this.githubService.reactToComment(owner, repo, triggerCommentId, "eyes");
-    const updatedPlan = await this.agentService.handleCommand("/update", issueTitle, issueBody);
     const comments = await this.githubService.getIssueComments(owner, repo, issueNumber.getValue());
     const planComment = comments.find((c) => c.body.includes(Templates.PLAN.title));
-    if (planComment) {
-      await this.githubService.updateComment(owner, repo, planComment.id, updatedPlan.response);
-    } else {
+    if (!planComment) {
+      this.logger.info("No existing plan found, creating new one");
+      const result = await this.agentService.handleCommand("/update", issueTitle, issueBody);
+      const currentHash2 = this.gitInfoService.getCurrentHeadHash();
+      const fullPlan = this.planCommentParser.buildPlanWithTracker(result.response, currentHash2, []);
+      await this.githubService.createComment(owner, repo, issueNumber.getValue(), fullPlan);
+      const now3 = (/* @__PURE__ */ new Date()).toISOString().replace("T", " ").substring(0, 19);
+      await this.githubService.createComment(owner, repo, issueNumber.getValue(), Templates.UPDATE_CONFIRM.build(now3));
+      await this.githubService.addLabel(owner, repo, issueNumber.getValue(), Labels.PLAN_UPDATED);
+      this.logger.info("New plan created via /update", { issueNumber: issueNumber.toString() });
+      return;
+    }
+    const versionHistory = this.planCommentParser.extractVersionHistory(planComment.body);
+    if (versionHistory.length === 0) {
+      this.logger.info("Legacy plan without version tracker, falling back to full regeneration");
+      const result = await this.agentService.handleCommand("/update", issueTitle, issueBody);
+      const currentHash2 = this.gitInfoService.getCurrentHeadHash();
+      const fullPlan = this.planCommentParser.buildPlanWithTracker(result.response, currentHash2, []);
+      await this.githubService.updateComment(owner, repo, planComment.id, fullPlan);
+      const now3 = (/* @__PURE__ */ new Date()).toISOString().replace("T", " ").substring(0, 19);
+      await this.githubService.createComment(owner, repo, issueNumber.getValue(), Templates.UPDATE_CONFIRM.build(now3));
+      await this.githubService.addLabel(owner, repo, issueNumber.getValue(), Labels.PLAN_UPDATED);
+      this.logger.info("Legacy plan regenerated", { issueNumber: issueNumber.toString() });
+      return;
+    }
+    let currentHash;
+    try {
+      currentHash = this.gitInfoService.getCurrentHeadHash();
+    } catch (error41) {
+      this.logger.error("Failed to get current HEAD hash, falling back to full regeneration", { error: error41 });
+      const result = await this.agentService.handleCommand("/update", issueTitle, issueBody);
+      const fullPlan = this.planCommentParser.buildPlanWithTracker(result.response, "unknown", versionHistory);
+      await this.githubService.updateComment(owner, repo, planComment.id, fullPlan);
+      const now3 = (/* @__PURE__ */ new Date()).toISOString().replace("T", " ").substring(0, 19);
+      await this.githubService.createComment(owner, repo, issueNumber.getValue(), Templates.UPDATE_CONFIRM.build(now3));
+      await this.githubService.addLabel(owner, repo, issueNumber.getValue(), Labels.PLAN_UPDATED);
+      return;
+    }
+    const latestStoredHash = versionHistory[0].commit;
+    if (latestStoredHash === currentHash) {
+      this.logger.info("No new commits since last plan update");
+      const now3 = (/* @__PURE__ */ new Date()).toISOString().replace("T", " ").substring(0, 19);
       await this.githubService.createComment(
         owner,
         repo,
         issueNumber.getValue(),
-        updatedPlan.response
+        Templates.UPDATE_NO_CHANGES.build(now3)
       );
+      return;
     }
+    let diff;
+    try {
+      diff = await this.githubService.compareCommits(owner, repo, latestStoredHash, currentHash);
+    } catch (error41) {
+      this.logger.warn("compareCommits failed, falling back to full regeneration", { error: error41 });
+      const result = await this.agentService.handleCommand("/update", issueTitle, issueBody);
+      const fullPlan = this.planCommentParser.buildPlanWithTracker(result.response, currentHash, versionHistory);
+      await this.githubService.updateComment(owner, repo, planComment.id, fullPlan);
+      const now3 = (/* @__PURE__ */ new Date()).toISOString().replace("T", " ").substring(0, 19);
+      await this.githubService.createComment(owner, repo, issueNumber.getValue(), Templates.UPDATE_CONFIRM.build(now3));
+      await this.githubService.addLabel(owner, repo, issueNumber.getValue(), Labels.PLAN_UPDATED);
+      return;
+    }
+    if (diff.files.length === 0) {
+      this.logger.info("No file changes detected in diff");
+      const now3 = (/* @__PURE__ */ new Date()).toISOString().replace("T", " ").substring(0, 19);
+      await this.githubService.createComment(
+        owner,
+        repo,
+        issueNumber.getValue(),
+        Templates.UPDATE_NO_CHANGES.build(now3)
+      );
+      return;
+    }
+    const originalPlanBody = this.planCommentParser.extractPlanBody(planComment.body);
+    this.logger.info("Calling AI for incremental plan update", {
+      filesChanged: diff.files.length,
+      aheadBy: diff.aheadBy
+    });
+    const updateResult = await this.agentService.updatePlanWithDiff(
+      originalPlanBody,
+      diff,
+      issueTitle,
+      issueBody
+    );
     const now2 = (/* @__PURE__ */ new Date()).toISOString().replace("T", " ").substring(0, 19);
+    if (!updateResult.wasRelevant) {
+      this.logger.info("Changes not relevant to plan", {
+        message: updateResult.message
+      });
+      await this.githubService.createComment(
+        owner,
+        repo,
+        issueNumber.getValue(),
+        Templates.UPDATE_NOT_RELEVANT.build(now2, updateResult.message || "Los cambios no afectan el plan actual.")
+      );
+      return;
+    }
+    const updatedFullPlan = this.planCommentParser.buildPlanWithTracker(
+      updateResult.response,
+      currentHash,
+      versionHistory
+    );
+    await this.githubService.updateComment(owner, repo, planComment.id, updatedFullPlan);
     await this.githubService.createComment(
       owner,
       repo,
@@ -63717,7 +64033,11 @@ var HandleCommandUseCase = class {
       Templates.UPDATE_CONFIRM.build(now2)
     );
     await this.githubService.addLabel(owner, repo, issueNumber.getValue(), Labels.PLAN_UPDATED);
-    this.logger.info("Plan updated successfully", { issueNumber: issueNumber.toString() });
+    this.logger.info("Plan updated successfully via incremental diff", {
+      issueNumber: issueNumber.toString(),
+      fromCommit: latestStoredHash,
+      toCommit: currentHash
+    });
   }
   async handleAsk(owner, repo, issueNumber, issueTitle, issueBody, triggerCommentId, args) {
     this.logger.info("Handling /ask command", { args });
@@ -63727,7 +64047,7 @@ var HandleCommandUseCase = class {
       owner,
       repo,
       issueNumber.getValue(),
-      result.response
+      Templates.REPLY.build(result.response)
     );
   }
   async handleInvestigate(owner, repo, issueNumber, issueTitle, issueBody, triggerCommentId, args) {
@@ -63737,13 +64057,13 @@ var HandleCommandUseCase = class {
     const comments = await this.githubService.getIssueComments(owner, repo, issueNumber.getValue());
     const planComment = comments.find((c) => c.body.includes(Templates.PLAN.title));
     if (planComment) {
-      await this.githubService.updateComment(owner, repo, planComment.id, result.response);
+      await this.githubService.updateComment(owner, repo, planComment.id, Templates.PLAN.build(result.response));
     } else {
       await this.githubService.createComment(
         owner,
         repo,
         issueNumber.getValue(),
-        result.response
+        Templates.PLAN.build(result.response)
       );
     }
     await this.githubService.createComment(
@@ -63752,6 +64072,102 @@ var HandleCommandUseCase = class {
       issueNumber.getValue(),
       Templates.INVESTIGATE_CONFIRM.build(args)
     );
+  }
+};
+
+// src/infrastructure/git/git-info.service.ts
+var import_child_process5 = require("child_process");
+var GitInfoService = class {
+  /**
+   * Obtiene el hash completo del commit actual (HEAD).
+   * Ejecuta: git rev-parse HEAD
+   * Lanza error si no puede obtenerlo.
+   */
+  getCurrentHeadHash() {
+    try {
+      return (0, import_child_process5.execSync)("git rev-parse HEAD", {
+        encoding: "utf-8",
+        timeout: 15e3
+      }).trim();
+    } catch (error41) {
+      throw new Error(
+        `No se pudo obtener el hash del HEAD: ${error41 instanceof Error ? error41.message : String(error41)}`
+      );
+    }
+  }
+  /**
+   * Intenta traer un commit específico desde origin.
+   * Útil para shallow clones donde el commit histórico no está disponible localmente.
+   * Retorna true si el fetch fue exitoso, false si falló.
+   */
+  fetchCommit(sha) {
+    try {
+      (0, import_child_process5.execSync)(`git fetch origin ${sha} --depth=1 --no-tags 2>/dev/null`, {
+        encoding: "utf-8",
+        timeout: 3e4
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+};
+
+// src/infrastructure/github/plan-comment-parser.ts
+var PlanCommentParser = class _PlanCommentParser {
+  static VERSIONS_REGEX = /<!--\s*scout:versions:\s*(.+?)\s*--\s*>/;
+  static SCOUT_REPORT_REGEX = /🕵️\s+\*\*Scout Report\*\*/;
+  /**
+   * Extrae el historial de versiones desde el HTML comment machine-readable.
+   * Retorna array vacío si no hay tracker (plan legacy).
+   */
+  extractVersionHistory(body) {
+    const match = body.match(_PlanCommentParser.VERSIONS_REGEX);
+    if (!match) return [];
+    return match[1].split(";").map((entry) => {
+      const [vPart, cPart] = entry.trim().split(",");
+      const version2 = parseInt(vPart.split("=")[1], 10);
+      const commit = cPart.split("=")[1];
+      return { commit, version: version2 };
+    }).sort((a, b) => b.version - a.version);
+  }
+  /**
+   * Extrae SOLO el cuerpo del plan (sin marker, sin version tracker).
+   */
+  extractPlanBody(fullBody) {
+    let body = fullBody.replace(/<!--\s*scout:plan\s*-->\n?/, "");
+    body = body.replace(/\n?🕵️\s+\*\*Scout Report\*\*[\s\S]*$/, "");
+    return body.trim();
+  }
+  /**
+   * Construye el string completo del plan con version tracker.
+   * @param body - El cuerpo del plan (solo contenido, sin markers)
+   * @param currentCommit - Hash del commit actual
+   * @param history - Historial de versiones previas (vacío para plan nuevo)
+   * @returns El string completo listo para publicar como comment
+   */
+  buildPlanWithTracker(body, currentCommit, history) {
+    const nextVersion = history.length > 0 ? Math.max(...history.map((h) => h.version)) + 1 : 1;
+    let tracker = `
+
+\u{1F575}\uFE0F **Scout Report** \u2014 Commit \`${currentCommit}\` (v${nextVersion})`;
+    if (history.length > 0) {
+      const prevChain = history.map((h) => `\`${h.commit}\` (v${h.version})`).join(" \u2192 ");
+      tracker += `
+\u21B3 Previous: ${prevChain}`;
+    }
+    const allEntries = [{ commit: currentCommit, version: nextVersion }, ...history];
+    const machineData = allEntries.map((e) => `v=${e.version},c=${e.commit}`).join("; ");
+    tracker += `
+<!-- scout:versions: ${machineData} -->`;
+    return `<!-- scout:plan -->
+${body}${tracker}`;
+  }
+  /**
+   * Verifica si un body de comment contiene un plan con tracker de versiones.
+   */
+  hasVersionTracker(body) {
+    return _PlanCommentParser.SCOUT_REPORT_REGEX.test(body);
   }
 };
 
@@ -63773,7 +64189,8 @@ async function run() {
     AI_TIMEOUT: getInput("ai_timeout"),
     LOG_LEVEL: getInput("log_level"),
     // Optional without defaults (empty string → undefined para que Zod use .optional())
-    AI_BASE_URL: getInput("ai_base_url") || void 0
+    AI_BASE_URL: getInput("ai_base_url") || void 0,
+    AI_PROVIDER_OPTIONS: getInput("ai_provider_options") || void 0
   });
   const logger = new ConsoleLogger(config2);
   logger.info("\u{1F680} Issue Scout Agent starting...", {
@@ -63784,6 +64201,8 @@ async function run() {
   });
   const agentService = new AgentService(config2, logger);
   const githubService = new GitHubServiceAdapter(config2.GITHUB_TOKEN, logger);
+  const gitInfoService = new GitInfoService();
+  const planCommentParser = new PlanCommentParser();
   const hasCode = import_fs4.default.existsSync("package.json") || import_fs4.default.existsSync("src/");
   if (!hasCode) {
     logger.warn("\u26A0\uFE0F No se encontr\xF3 c\xF3digo del repositorio en el directorio de trabajo. Aseg\xFArate de incluir actions/checkout@v4 ANTES de usar moonslayers/issue-scout-agent en tu workflow.", {
@@ -63794,13 +64213,17 @@ async function run() {
   const handleCommandUseCase = new HandleCommandUseCase(
     agentService,
     githubService,
-    logger
+    logger,
+    gitInfoService,
+    planCommentParser
   );
   const investigateUseCase = new InvestigateIssueUseCase(
     agentService,
     githubService,
     logger,
-    config2
+    config2,
+    gitInfoService,
+    planCommentParser
   );
   const context4 = context2;
   const payload = context4.payload;
