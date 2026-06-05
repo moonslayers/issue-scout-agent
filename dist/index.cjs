@@ -64135,7 +64135,7 @@ var PlanCommentParser = class _PlanCommentParser {
    * Extrae SOLO el cuerpo del plan (sin marker, sin version tracker).
    */
   extractPlanBody(fullBody) {
-    let body = fullBody.replace(/<!--\s*scout:plan\s*-->\n?/, "");
+    let body = fullBody.replace(/<!--\s*scout:plan\s*-->\n## 🤖 Plan Técnico Generado por Issue Scout\n+/, "");
     body = body.replace(/\n?🕵️\s+\*\*Scout Report\*\*[\s\S]*$/, "");
     return body.trim();
   }
@@ -64161,7 +64161,9 @@ var PlanCommentParser = class _PlanCommentParser {
     tracker += `
 <!-- scout:versions: ${machineData} -->`;
     return `<!-- scout:plan -->
-${body}${tracker}`;
+## \u{1F916} Plan T\xE9cnico Generado por Issue Scout
+
+${body}${tracker}${SCOUT_BRANDING}`;
   }
   /**
    * Verifica si un body de comment contiene un plan con tracker de versiones.
