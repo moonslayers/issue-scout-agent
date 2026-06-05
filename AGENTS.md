@@ -1,94 +1,83 @@
 # AGENTS.md — Issue Scout Agent
 
-## Repo purpose
-A GitHub Action that auto-investigates issues using AI (Vercel AI SDK) and posts technical plans.
+## What this is
+GitHub Action (node20, `dist/index.js`) that auto-investigates issues using Vercel AI SDK + tools and posts technical plans.
 
-## Quick commands
+## Commands
 ```sh
-npm install
-npm run type-check      # tsc --noEmit
-npm run lint            # eslint src/**/*.ts
-npm run lint:fix        # --fix variant
-npm run test            # jest (all)
-npm run test:unit       # jest tests/unit
-npm run test:integration # jest tests/integration
-npm run build           # tsc → dist/
+npm run type-check        # tsc --noEmit (required first)
+npm run lint              # eslint src/**/*.ts (flat config, ESLint v9)
+npm run lint:fix          # --fix variant
+npm run test:unit         # jest tests/unit
+npm run test:integration  # jest tests/integration
+npm run test:e2e          # jest tests/e2e (NOT run in CI)
+npm run build             # tsc --noEmit && esbuild → dist/index.js
 ```
+**CI order**: `type-check` → `lint` → `test:unit` → `test:integration` → `build`.
 
-**CI order** (must pass in this sequence): `type-check` → `lint` → `test:unit` → `test:integration` → `build`.
+## Quirks
+- `package.json` has `"type": "module"` but tsconfig uses `module: "commonjs"` and esbuild bundles to CommonJS.
+- `tsc` is type-check only (`--noEmit`); esbuild produces the actual build artifact.
+- `tsconfig.test.json` (`extends: ./tsconfig.json`, adds jest/node types) is used by ts-jest.
+- ESLint v9 flat config (`eslint.config.js`), not `.eslintrc*`.
+- `loadConfig()` from `shared/config/environment.config.ts` calls `process.exit(1)` on invalid env.
 
 ## Architecture
-Clean Architecture (4 layers):
 
 ```
-presentation/github-actions/index.ts   ← entrypoint, event router
-application/use-cases/                  ← investigate-issue, handle-command
-application/services/agent.service.ts   ← AI orchestration via generateText
-domain/                                 ← entities, value-objects, enums
-infrastructure/ai/                      ← provider-factory, tools, prompts
-infrastructure/github/                  ← Octokit adapter
-shared/config/                          ← Zod env validation
+presentation/github-actions/index.ts  ← entrypoint (event router)
+application/use-cases/                ← InvestigateIssueUseCase, HandleCommandUseCase
+application/services/agent.service.ts ← AI orchestration (generateText), NOT behind interface
+domain/                               ← entities, value-objects, enums
+infrastructure/ai/                    ← ProviderFactory (openai/anthropic/custom), 5 sync tools, Spanish prompt
+infrastructure/github/                ← Octokit adapter (implements IGitHubService)
+shared/config/                        ← Zod env validation
 ```
 
-- Always `loadConfig()` at the top; missing env vars exit immediately.
-- `IGitHubService` defined in `application/interfaces/`, implemented in `infrastructure/github/`.
-- `AgentService` is NOT behind an interface — it's a concrete class instantiated directly.
+## Events
+- `issues: opened` → `InvestigateIssueUseCase.execute()` → posts `wrapPlan()`-wrapped comment, labels `scout-investigated`.
+- `issue_comment: created` with leading `/` → `HandleCommandUseCase.execute()`.
+- Commands: `/ask [question]` (new reply), `/update` (edits original plan comment in-place), `/investigate [component]` (edits plan in-place).
+- `/update` posts confirmation comment + `plan-updated` label.
+- `planCommentId` is shared between use cases via `getLastPlanCommentId()`/`setPlanCommentId()`.
+- Reactions: 👀 on trigger comment for `/update`/`/ask`/`/investigate`; 👀 on issue itself for new issues.
 
-## Key behaviors
-
-### Event handling
-- `issues: opened` → `InvestigateIssueUseCase.execute()` → posts plan, labels `scout-investigated`.
-- `issue_comment: created` → `HandleCommandUseCase.execute()` if body starts with `/`.
-- Commands: `/ask [question]`, `/update`, `/investigate [component]`.
-- `/update` edits the original plan comment in-place (stored via `planCommentId`), posts confirmation + `plan-updated` label.
-- All comments wrapped with `wrapPlan()` — header `🤖 Plan Técnico Generado por Issue Scout` + footer disclaimer.
-
-### AI config (Zod-validated)
-```ts
-AI_PROVIDER     // 'openai' | 'anthropic' | 'custom'
-AI_API_KEY      // required
-AI_MODEL        // required
-AI_BASE_URL     // optional, required for 'custom'
-AI_TEMPERATURE  // default 0.3
-AI_MAX_TOKENS   // default 2000
-AI_MAX_ITERATIONS // default 10 (agent loop steps)
-AI_TIMEOUT      // default 60s
+## Env config (Zod-validated, `shared/config/environment.config.ts`)
 ```
-- `custom` provider uses `createOpenAI` with the custom base URL (must be OpenAI-compatible).
-- Tests inject fake env vars (`AI_API_KEY=sk-test-key`, etc.) — don't assume real keys.
+AI_PROVIDER=openai|anthropic|custom (default openai)
+AI_API_KEY= required
+AI_MODEL= required
+AI_BASE_URL= optional, required for custom
+AI_TEMPERATURE=0.3, AI_MAX_TOKENS=2000, AI_MAX_ITERATIONS=10, AI_TIMEOUT=60
+GITHUB_TOKEN= required
+GITHUB_REPOSITORY_OWNER= required
+GITHUB_REPOSITORY_NAME= required
+LOG_LEVEL=info|debug|warn|error
+DEBUG_TOOLS=false       # logs each AI tool call at info level
+DEBUG_PROMPTS=false     # dumps full AI response text
+```
+Tests inject fake env vars (`AI_API_KEY=sk-test-key`, `AI_PROVIDER=openai`, `AI_MODEL=gpt-4-turbo`) in `test.yml`.
 
-### Code exploration tools (the AI agent uses these)
-| Tool | Implementation | Notes |
-|------|---------------|-------|
-| `listDir` | `find <path> -maxdepth <N> -type f` via `execSync` | Synchronous shell call, defaults depth 2, max 100 results |
-| `readFile` | `fs.readFileSync` | Head/tail truncation (default 50/20 lines) for large files |
-| `searchCode` | `rg <pattern>` via `execSync` | Returns `path:line:content` |
-| `getFileTree` | `find <path>` via `execSync` | Full tree of files |
-| `gitDiff` | `git diff <base>..<head>` via `execSync` | |
-
-All tools use **synchronous** `execSync`/`readFileSync` — no `fs/promises`.
-
-### System prompt
-- Written in Spanish (`src/infrastructure/ai/prompts/system-prompt.ts`).
-- Response format: Analysis → Affected Files → Implementation Plan → Considerations → Next Step.
-- Agent instructed to never invent files, verify with tools first.
+## AI tools (all synchronous — `execSync`/`readFileSync`)
+| Tool | Backend |
+|------|--------|
+| `listDir` | `find <path> -maxdepth <N> -type 2>/dev/null \| head -100` |
+| `readFile` | `fs.readFileSync` (truncates head 50 / tail 20 for large files) |
+| `searchCode` | `rg <pattern>` → `path:line:content` |
+| `getFileTree` | `find <path>` → full tree |
+| `gitDiff` | `git diff <base>..<head>` |
 
 ## Testing
-- **Jest** with `ts-jest`, config in `jest.config.ts`.
-- Unit tests: `tests/unit/domain/` and `tests/unit/infrastructure/`.
+- Unit tests: `tests/unit/domain/`, `tests/unit/infrastructure/`.
 - Integration tests: `tests/integration/` (mock GitHub via Octokit).
 - Coverage thresholds: branches 55%, functions 65%, lines 65%, statements 65%.
-- No `test:e2e` suite is run in CI.
-- When adding a new tool, add unit tests in `tests/unit/infrastructure/`.
+- No `test:e2e` in CI. When adding a tool, add unit tests in `tests/unit/infrastructure/`.
 
-## Build & release
-- `npm run build` compiles `src/` → `dist/` (CommonJS, ES2023 target).
-- `action.yml` references `dist/index.js` as the Action entrypoint.
-- CI uploads coverage to Codecov.
-- Release workflow: push tag `v*` → build → `softprops/action-gh-release` with `dist/**` + `action.yml`.
+## Release
+- Push to `main` triggers CI + Release. If tests pass: build → commit `dist/` with `[skip ci]` → auto-tag `v$(package.json version)` → `softprops/action-gh-release` with `dist/**` + `action.yml`.
+- Manual: bump `package.json` version, commit, push.
 
-## Spanish-English mix
-Codebase is bilingual. Domain names, comments, strings are often in Spanish. Variable/function names in English. Keep this mix consistent.
-
-## .env file
-Copy `.env.example` → `.env`. Required vars: `AI_API_KEY`, `AI_MODEL`, `GITHUB_TOKEN`, `GITHUB_REPOSITORY_OWNER`, `GITHUB_REPOSITORY_NAME`.
+## Style
+- Spanish/English bilingual: strings/comments in Spanish, var/function names in English.
+- System prompt in Spanish (`infrastructure/ai/prompts/system-prompt.ts`).
+- Comments wrapped with `wrapPlan()` (private in `GitHubServiceAdapter`): header `🤖 Plan Técnico Generado por Issue Scout` + footer disclaimer.
