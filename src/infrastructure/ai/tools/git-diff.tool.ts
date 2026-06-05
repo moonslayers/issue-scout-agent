@@ -10,15 +10,17 @@ export class GitDiffTool implements ITool {
     head: z.string().optional().default('HEAD').describe('Referencia head'),
     path: z.string().optional().describe('Ruta específica para filtrar el diff'),
     maxLines: z.number().optional().default(200).describe('Máximo de líneas del diff a retornar'),
+    gitDir: z.string().optional().default('.').describe('Directorio del repositorio git (default: directorio actual)'),
   });
 
-  async execute(params: { base?: string; head?: string; path?: string; maxLines?: number }): Promise<string> {
+  async execute(params: { base?: string; head?: string; path?: string; maxLines?: number; gitDir?: string }): Promise<string> {
     try {
       const base = params.base ?? 'HEAD~1';
       const head = params.head ?? 'HEAD';
       const maxLines = params.maxLines ?? 200;
+      const gitDir = params.gitDir ?? '.';
 
-      let cmd = `git diff ${base}...${head} 2>/dev/null`;
+      let cmd = `git -C "${gitDir}" diff ${base}...${head} 2>/dev/null`;
       if (params.path) {
         cmd += ` -- "${params.path}"`;
       }
