@@ -62273,41 +62273,67 @@ var AgentService = class {
   async investigate(issueTitle, issueBody) {
     this.logger.info("Starting investigation", { title: issueTitle });
     const model = ProviderFactory.create(this.config);
-    const result = await generateText({
-      model,
-      system: SYSTEM_PROMPT,
-      prompt: this.buildInvestigatePrompt(issueTitle, issueBody),
-      tools: this.buildTools(),
-      stopWhen: stepCountIs(this.config.AI_MAX_ITERATIONS),
-      temperature: this.config.AI_TEMPERATURE,
-      maxOutputTokens: this.config.AI_MAX_TOKENS
-    });
-    this.logger.info("Investigation completed", {
-      tokensUsed: result.usage?.totalTokens,
-      steps: result.steps?.length
-    });
-    if (this.config.DEBUG_PROMPTS) {
-      this.logger.debug("Full response", { text: result.text });
+    try {
+      const result = await generateText({
+        model,
+        system: SYSTEM_PROMPT,
+        prompt: this.buildInvestigatePrompt(issueTitle, issueBody),
+        tools: this.buildTools(),
+        stopWhen: stepCountIs(this.config.AI_MAX_ITERATIONS),
+        temperature: this.config.AI_TEMPERATURE,
+        maxOutputTokens: this.config.AI_MAX_TOKENS
+      });
+      this.logger.info("Investigation completed", {
+        tokensUsed: result.usage?.totalTokens,
+        steps: result.steps?.length
+      });
+      if (this.config.DEBUG_PROMPTS) {
+        this.logger.debug("Full response", { text: result.text });
+      }
+      return result.text;
+    } catch (error41) {
+      this.logger.error("AI investigation call failed", {
+        title: issueTitle,
+        error: error41 instanceof Error ? error41.message : String(error41),
+        stack: error41 instanceof Error ? error41.stack : void 0,
+        cause: error41 instanceof Error && error41.cause ? JSON.stringify(error41.cause) : void 0,
+        provider: this.config.AI_PROVIDER,
+        model: this.config.AI_MODEL,
+        baseURL: this.config.AI_BASE_URL
+      });
+      throw error41;
     }
-    return result.text;
   }
   async handleCommand(command, issueTitle, issueBody) {
     this.logger.info("Handling command", { command });
     const model = ProviderFactory.create(this.config);
     const isUpdate = command.trim().toLowerCase() === "/update";
-    const result = await generateText({
-      model,
-      system: SYSTEM_PROMPT,
-      prompt: this.buildCommandPrompt(command, issueTitle, issueBody),
-      tools: this.buildTools(),
-      stopWhen: stepCountIs(this.config.AI_MAX_ITERATIONS),
-      temperature: this.config.AI_TEMPERATURE,
-      maxOutputTokens: this.config.AI_MAX_TOKENS
-    });
-    return {
-      response: result.text,
-      wasUpdate: isUpdate
-    };
+    try {
+      const result = await generateText({
+        model,
+        system: SYSTEM_PROMPT,
+        prompt: this.buildCommandPrompt(command, issueTitle, issueBody),
+        tools: this.buildTools(),
+        stopWhen: stepCountIs(this.config.AI_MAX_ITERATIONS),
+        temperature: this.config.AI_TEMPERATURE,
+        maxOutputTokens: this.config.AI_MAX_TOKENS
+      });
+      return {
+        response: result.text,
+        wasUpdate: isUpdate
+      };
+    } catch (error41) {
+      this.logger.error("AI command call failed", {
+        command,
+        error: error41 instanceof Error ? error41.message : String(error41),
+        stack: error41 instanceof Error ? error41.stack : void 0,
+        cause: error41 instanceof Error && error41.cause ? JSON.stringify(error41.cause) : void 0,
+        provider: this.config.AI_PROVIDER,
+        model: this.config.AI_MODEL,
+        baseURL: this.config.AI_BASE_URL
+      });
+      throw error41;
+    }
   }
   buildInvestigatePrompt(title, body) {
     return `## Issue a Investigar
@@ -62437,10 +62463,14 @@ var Octokit2 = Octokit.plugin(requestLog, legacyRestEndpointMethods, paginateRes
 
 // src/infrastructure/github/github-service.adapter.ts
 var GitHubServiceAdapter = class {
-  octokit;
-  constructor(token) {
+  constructor(token, logger) {
+    this.token = token;
+    this.logger = logger;
     this.octokit = new Octokit2({ auth: token });
   }
+  token;
+  logger;
+  octokit;
   async createComment(owner, repo, issueNumber, body) {
     const { data } = await this.octokit.issues.createComment({
       owner,
@@ -62478,7 +62508,11 @@ ${body}`
         content: reaction
       });
     } catch (error41) {
-      console.warn(`No se pudo reaccionar al issue: ${error41 instanceof Error ? error41.message : String(error41)}`);
+      this.logger.warn("No se pudo reaccionar al issue", {
+        issueNumber,
+        reaction,
+        error: error41 instanceof Error ? error41.message : String(error41)
+      });
     }
   }
   async reactToComment(owner, repo, commentId, reaction) {
@@ -62491,7 +62525,11 @@ ${body}`
         content: reaction
       });
     } catch (error41) {
-      console.warn(`No se pudo reaccionar al comentario: ${error41 instanceof Error ? error41.message : String(error41)}`);
+      this.logger.warn("No se pudo reaccionar al comentario", {
+        commentId,
+        reaction,
+        error: error41 instanceof Error ? error41.message : String(error41)
+      });
     }
   }
   async addLabel(owner, repo, issueNumber, label) {
@@ -62503,7 +62541,11 @@ ${body}`
         labels: [label]
       });
     } catch (error41) {
-      console.warn(`No se pudo agregar label: ${error41 instanceof Error ? error41.message : String(error41)}`);
+      this.logger.warn("No se pudo agregar label", {
+        issueNumber,
+        label,
+        error: error41 instanceof Error ? error41.message : String(error41)
+      });
     }
   }
   async removeLabel(owner, repo, issueNumber, label) {
@@ -62515,7 +62557,11 @@ ${body}`
         name: label
       });
     } catch (error41) {
-      console.warn(`No se pudo remover label: ${error41 instanceof Error ? error41.message : String(error41)}`);
+      this.logger.warn("No se pudo remover label", {
+        issueNumber,
+        label,
+        error: error41 instanceof Error ? error41.message : String(error41)
+      });
     }
   }
   async getIssue(owner, repo, issueNumber) {
@@ -62602,7 +62648,10 @@ var InvestigateIssueUseCase = class {
     } catch (error41) {
       this.logger.error("Investigation failed", {
         issueNumber: issueNumber.toString(),
-        error: error41 instanceof Error ? error41.message : String(error41)
+        title,
+        error: error41 instanceof Error ? error41.message : String(error41),
+        stack: error41 instanceof Error ? error41.stack : void 0,
+        cause: error41 instanceof Error && error41.cause ? JSON.stringify(error41.cause) : void 0
       });
       await this.githubService.createComment(
         owner,
@@ -62698,7 +62747,10 @@ var HandleCommandUseCase = class {
     } catch (error41) {
       this.logger.error("Command handling failed", {
         command: command.type,
-        error: error41 instanceof Error ? error41.message : String(error41)
+        issueNumber: issueNumber.toString(),
+        error: error41 instanceof Error ? error41.message : String(error41),
+        stack: error41 instanceof Error ? error41.stack : void 0,
+        cause: error41 instanceof Error && error41.cause ? JSON.stringify(error41.cause) : void 0
       });
       await this.githubService.createComment(
         owner,
@@ -62801,7 +62853,7 @@ async function run() {
     action: context2.payload.action
   });
   const agentService = new AgentService(config2, logger);
-  const githubService = new GitHubServiceAdapter(config2.GITHUB_TOKEN);
+  const githubService = new GitHubServiceAdapter(config2.GITHUB_TOKEN, logger);
   const handleCommandUseCase = new HandleCommandUseCase(
     agentService,
     githubService,
