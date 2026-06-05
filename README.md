@@ -128,6 +128,40 @@ Built with **Clean Architecture** and **Vercel AI SDK**.
 
 See [docs/adr](./docs/adr) for Architecture Decision Records.
 
+## Release Process
+
+Las releases son **automáticas**. No necesitas comandos manuales.
+
+### Cómo hacer un release
+
+1. Actualiza la versión en `package.json`
+2. Haz commit y push a `main`:
+
+```bash
+git add package.json
+git commit -m "chore: bump version to X.Y.Z"
+git push origin main
+```
+
+3. El CI ejecutará los tests automáticamente
+4. Si los tests pasan, el Release workflow:
+   - Buildeará `dist/` y lo comiteará con `[skip ci]`
+   - Creará un tag `vX.Y.Z` automáticamente
+   - Creará un **GitHub Release** con release notes generados
+
+> ⚠️ El release **solo ocurre si los tests pasan**. Si algún test falla, el release se omite automáticamente.
+
+### Arquitectura de CI/CD
+
+```
+.github/workflows/
+├── test.yml       ← Reusable: steps de test (type-check, lint, tests, build)
+├── ci.yml         ← PR + push a main → llama a test.yml (read-only)
+└── release.yml    ← Push a main → test.yml + build + tag + release
+```
+
+El workflow `release.yml` tiene `needs: [test]`, lo que garantiza que **nunca** se publique un release con tests fallando.
+
 ## License
 
 MIT
