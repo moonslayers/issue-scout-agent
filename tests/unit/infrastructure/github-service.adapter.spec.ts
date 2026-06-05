@@ -9,6 +9,13 @@ const mockAddLabels = jest.fn();
 const mockRemoveLabel = jest.fn();
 const mockGetIssue = jest.fn();
 
+const mockLogger = {
+  info: jest.fn(),
+  warn: jest.fn(),
+  error: jest.fn(),
+  debug: jest.fn(),
+};
+
 jest.mock('@octokit/rest', () => ({
   Octokit: jest.fn().mockImplementation(() => ({
     issues: {
@@ -30,7 +37,7 @@ describe('GitHubServiceAdapter', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    adapter = new GitHubServiceAdapter('test-token');
+    adapter = new GitHubServiceAdapter('test-token', mockLogger);
   });
 
   describe('createComment', () => {
@@ -83,14 +90,20 @@ describe('GitHubServiceAdapter', () => {
     });
 
     it('should not throw on reaction error', async () => {
-      const warnSpy = jest.spyOn(console, 'warn').mockImplementation();
       mockCreateReaction.mockRejectedValue(new Error('API error'));
 
       await expect(
         adapter.reactToIssue('owner', 'repo', 1, 'rocket')
       ).resolves.not.toThrow();
 
-      warnSpy.mockRestore();
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        'No se pudo reaccionar al issue',
+        expect.objectContaining({
+          issueNumber: 1,
+          reaction: 'rocket',
+          error: 'API error',
+        })
+      );
     });
   });
 
