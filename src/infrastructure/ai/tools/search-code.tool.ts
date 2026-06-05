@@ -2,6 +2,8 @@ import { execSync } from 'child_process';
 import { ITool } from './tool.interface';
 import { z } from 'zod';
 
+const DEFAULT_EXTENSIONS = ['ts', 'tsx', 'js', 'jsx', 'json', 'yml', 'yaml', 'md'];
+
 export class SearchCodeTool implements ITool {
   name = 'searchCode';
   description = 'Busca texto en el código usando grep. Busca en archivos .ts, .tsx, .js, .jsx, .json, .yml, .yaml, .md por defecto';
@@ -14,8 +16,11 @@ export class SearchCodeTool implements ITool {
   async execute(params: { query: string; filePattern?: string; maxResults?: number }): Promise<string> {
     try {
       const maxResults = params.maxResults ?? 20;
-      const filePattern = params.filePattern || '*.{ts,tsx,js,jsx,json,yml,yaml,md}';
-      const cmd = `grep -rl --include=${filePattern} "${params.query}" . | head -${maxResults}`;
+      const includeFlags = params.filePattern
+        ? `--include="${params.filePattern}"`
+        : DEFAULT_EXTENSIONS.map(ext => `--include=*.${ext}`).join(' ');
+
+      const cmd = `grep -rl ${includeFlags} "${params.query}" . | head -${maxResults}`;
       const output = execSync(cmd, { encoding: 'utf-8', timeout: 15000 });
       return output || 'No se encontraron resultados';
     } catch (error) {
