@@ -1,4 +1,3 @@
-import { Issue } from '../../domain/entities/issue.entity';
 import { IssueNumber } from '../../domain/value-objects/issue-number.vo';
 import { AgentService } from '../services/agent.service';
 import { IGitHubService } from '../interfaces/github-service.interface';

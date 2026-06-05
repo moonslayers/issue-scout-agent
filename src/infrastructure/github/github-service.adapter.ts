@@ -62,6 +62,7 @@ export class GitHubServiceAdapter implements IGitHubService {
         owner,
         repo,
         issue_number: issueNumber,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         content: reaction as any,
       });
     } catch (error) {
@@ -80,6 +81,7 @@ export class GitHubServiceAdapter implements IGitHubService {
         owner,
         repo,
         comment_id: commentId,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         content: reaction as any,
       });
     } catch (error) {

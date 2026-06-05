@@ -1,4 +1,4 @@
-import { generateText, tool, stepCountIs, LanguageModel } from 'ai';
+import { generateText, tool, stepCountIs } from 'ai';
 import { z } from 'zod';
 import { EnvConfig } from '../../shared/config/environment.config';
 import { ILogger } from '../../shared/logger/logger.interface';
