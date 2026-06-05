@@ -62115,7 +62115,7 @@ var import_child_process2 = require("child_process");
 var DEFAULT_EXTENSIONS = ["ts", "tsx", "js", "jsx", "json", "yml", "yaml", "md"];
 var SearchCodeTool = class {
   name = "searchCode";
-  description = "Busca texto en el c\xF3digo usando ripgrep. Busca en archivos .ts, .tsx, .js, .jsx, .json, .yml, .yaml, .md por defecto";
+  description = "Busca texto en el c\xF3digo usando grep. Busca en archivos .ts, .tsx, .js, .jsx, .json, .yml, .yaml, .md por defecto";
   parameters = external_exports.object({
     query: external_exports.string().describe('Texto a buscar (ej: "function calculateTotal")'),
     filePattern: external_exports.string().optional().describe('Patr\xF3n de archivos (opcional, ej: "*.ts")'),
@@ -62126,8 +62126,8 @@ var SearchCodeTool = class {
     try {
       const maxResults = params.maxResults ?? 20;
       const searchPath = params.searchPath ?? ".";
-      const glob = params.filePattern ? `-g "${params.filePattern}"` : DEFAULT_EXTENSIONS.map((ext) => `-g "*.${ext}"`).join(" ");
-      const cmd = `rg -l ${glob} "${params.query}" "${searchPath}" | head -${maxResults}`;
+      const includeFlags = params.filePattern ? `--include="${params.filePattern}"` : DEFAULT_EXTENSIONS.map((ext) => `--include=*.${ext}`).join(" ");
+      const cmd = `grep -rl ${includeFlags} "${params.query}" "${searchPath}" | head -${maxResults}`;
       const output = (0, import_child_process2.execSync)(cmd, { encoding: "utf-8", timeout: 15e3 });
       return output || "No se encontraron resultados";
     } catch (error41) {

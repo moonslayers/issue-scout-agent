@@ -6,7 +6,7 @@ const DEFAULT_EXTENSIONS = ['ts', 'tsx', 'js', 'jsx', 'json', 'yml', 'yaml', 'md
 
 export class SearchCodeTool implements ITool {
   name = 'searchCode';
-  description = 'Busca texto en el código usando ripgrep. Busca en archivos .ts, .tsx, .js, .jsx, .json, .yml, .yaml, .md por defecto';
+  description = 'Busca texto en el código usando grep. Busca en archivos .ts, .tsx, .js, .jsx, .json, .yml, .yaml, .md por defecto';
   parameters = z.object({
     query: z.string().describe('Texto a buscar (ej: "function calculateTotal")'),
     filePattern: z.string().optional().describe('Patrón de archivos (opcional, ej: "*.ts")'),
@@ -18,11 +18,11 @@ export class SearchCodeTool implements ITool {
     try {
       const maxResults = params.maxResults ?? 20;
       const searchPath = params.searchPath ?? '.';
-      const glob = params.filePattern
-        ? `-g "${params.filePattern}"`
-        : DEFAULT_EXTENSIONS.map(ext => `-g "*.${ext}"`).join(' ');
+      const includeFlags = params.filePattern
+        ? `--include="${params.filePattern}"`
+        : DEFAULT_EXTENSIONS.map(ext => `--include=*.${ext}`).join(' ');
 
-      const cmd = `rg -l ${glob} "${params.query}" "${searchPath}" | head -${maxResults}`;
+      const cmd = `grep -rl ${includeFlags} "${params.query}" "${searchPath}" | head -${maxResults}`;
       const output = execSync(cmd, { encoding: 'utf-8', timeout: 15000 });
       return output || 'No se encontraron resultados';
     } catch (error) {
