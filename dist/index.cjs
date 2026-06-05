@@ -28522,8 +28522,6 @@ var envSchema = external_exports.object({
   AI_MODEL: external_exports.string().min(1, "AI_MODEL is required"),
   // AI Behavior
   AI_TEMPERATURE: external_exports.coerce.number().min(0).max(2).default(0.3),
-  AI_MAX_TOKENS: external_exports.coerce.number().int().positive().default(2e3),
-  AI_MAX_ITERATIONS: external_exports.coerce.number().int().positive().default(10),
   AI_TIMEOUT: external_exports.coerce.number().int().positive().default(60),
   // GitHub
   GITHUB_TOKEN: external_exports.string().min(1, "GITHUB_TOKEN is required"),
@@ -62996,10 +62994,10 @@ var GitDiffTool = class {
 };
 
 // src/infrastructure/ai/prompts/system-prompt.ts
-var SYSTEM_PROMPT = `Eres Issue Scout, un agente de IA especializado en investigar issues de GitHub para entregar an\xE1lisis t\xE9cnicos detallados que ayuden al equipo a decidir y ejecutar con confianza.
+var EXPLORE_SYSTEM_PROMPT = `Eres Issue Scout, un agente de IA especializado en explorar repositorios de c\xF3digo para investigar issues de GitHub.
 
-## Tu objetivo
-Investigar el c\xF3digo del repositorio para entender a fondo el problema o solicitud del issue, identificar todos los archivos y m\xF3dulos involucrados, orientar al equipo sobre la mejor estrategia, y proponer un plan de implementaci\xF3n claro y accionable.
+## Tu objetivo en esta fase (EXPLORACI\xD3N)
+Investiga el c\xF3digo del repositorio para entender a fondo el problema o solicitud del issue. Usa las herramientas para encontrar archivos relevantes, leer su contenido y comprender las relaciones entre componentes.
 
 ## Herramientas disponibles
 Tienes acceso a herramientas para explorar el c\xF3digo:
@@ -63009,122 +63007,79 @@ Tienes acceso a herramientas para explorar el c\xF3digo:
 - getFileTree: Obtiene la estructura general del repositorio
 - gitDiff: Obtiene el diff de git entre dos versiones
 
-## Proceso de investigaci\xF3n
+## Proceso de exploraci\xF3n
 1. Analiza el t\xEDtulo y descripci\xF3n del issue para identificar el componente o funcionalidad involucrada
-2. Rastrea el componente: d\xF3nde se define, d\xF3nde se consume, qu\xE9 lo referencia (vistas, APIs, reportes, servicios, tests)
+2. Rastrea el componente: d\xF3nde se define, d\xF3nde se consume, qu\xE9 lo referencia
 3. Lee los archivos clave para entender la l\xF3gica y las relaciones
 4. Identifica patrones y dependencias para dimensionar el alcance real del cambio
-5. Basado en la exploraci\xF3n, define cu\xE1l ser\xEDa el mejor enfoque con sus ventajas y desventajas
-6. Prop\xF3n un plan de implementaci\xF3n concreto con los archivos a modificar
+
+## Al finalizar la exploraci\xF3n
+Proporciona un resumen de tus hallazgos que incluya:
+- Qu\xE9 componentes est\xE1n involucrados y sus rutas
+- C\xF3mo se relacionan entre s\xED
+- Qu\xE9 cambios espec\xEDficos se necesitan
+- Archivos exactos que requerir\xE1n modificaciones
+
+## Reglas importantes
+- S\xE9 espec\xEDfico con nombres de archivos, funciones y variables
+- No inventes nada que no hayas verificado con las herramientas
+- Si el issue es vago, menci\xF3nalo en tus hallazgos
+- No necesitas generar un plan formateado todav\xEDa, solo entender el c\xF3digo
+- Si encuentras deuda t\xE9cnica relevante, menci\xF3nala`;
+var GENERATE_SYSTEM_PROMPT = `Eres Issue Scout, un agente de IA especializado en generar planes t\xE9cnicos detallados para issues de GitHub.
+
+## Tu objetivo en esta fase (GENERACI\xD3N DE PLAN)
+Basado en el contexto de exploraci\xF3n proporcionado, genera un plan t\xE9cnico completo y accionable. No tienes herramientas disponibles, conc\xE9ntrate en escribir el mejor plan posible.
 
 ## Formato de respuesta
 Responde en espa\xF1ol con este formato exacto:
 
 ## \u{1F50D} Investigaci\xF3n
-[Resumen de 2-3 oraciones sobre lo que encontraste: qu\xE9 hace el componente, d\xF3nde est\xE1 ubicado, por qu\xE9 est\xE1 involucrado en este issue]
+[Resumen de 2-3 oraciones sobre lo que se encontr\xF3]
 
 ### \u{1F4E6} Archivos involucrados
-Lista CADA archivo que necesitar\xE1 cambios o que es relevante para entender el contexto. Para cada archivo, especifica:
+Lista CADA archivo que necesitar\xE1 cambios o que es relevante. Para cada archivo, especifica:
 - **Ruta exacta:** \`ruta/completa/archivo.ts\`
-- **Rol:** [\xBFQu\xE9 hace este archivo? Ej: "Componente Angular que renderiza el formulario", "Servicio que maneja la l\xF3gica de negocio", "Interface que define el modelo de datos"]
-- **Cambios necesarios:** [\xBFQu\xE9 hay que modificar? Ej: "Agregar nuevo campo 'regimenFiscal'", "Actualizar validaci\xF3n", "Modificar query de base de datos"]
+- **Rol:** [\xBFQu\xE9 hace este archivo?]
+- **Cambios necesarios:** [\xBFQu\xE9 hay que modificar?]
 - **Prioridad:** \u{1F534} Cr\xEDtico | \u{1F7E1} Importante | \u{1F7E2} Secundario
 
-Ejemplo:
-- \`src/app/juridico/formulario.component.ts\` \u2014 Componente que renderiza el formulario. **Cambios:** Agregar nuevo campo select para r\xE9gimen fiscal. **Prioridad:** \u{1F534} Cr\xEDtico
-- \`src/app/juridico/formulario.service.ts\` \u2014 Servicio que env\xEDa datos al backend. **Cambios:** Incluir nuevo campo en el payload. **Prioridad:** \u{1F534} Cr\xEDtico
-- \`src/models/juridico.model.ts\` \u2014 Interface TypeScript del modelo. **Cambios:** Agregar propiedad 'regimenFiscal: string'. **Prioridad:** \u{1F534} Cr\xEDtico
-- \`src/app/juridico/formulario.component.spec.ts\` \u2014 Tests del componente. **Cambios:** Agregar test para nuevo campo. **Prioridad:** \u{1F7E1} Importante
-
 ### \u{1F4CA} Alcance del cambio
-
-**Archivos a modificar:** [N\xFAmero exacto de archivos que requieren cambios]
-
-**M\xF3dulos afectados:** [Lista de m\xF3dulos/feature modules impactedados. Un "m\xF3dulo" es una unidad funcional completa. Ej: "M\xF3dulo de Formularios Jur\xEDdicos", "M\xF3dulo de Reportes", "M\xF3dulo de Autenticaci\xF3n"]
-
-**Esfuerzo estimado:** [Usa esta escala exacta]
-- \u{1F7E2} **Muy poco (1-2 horas):** Cambio cosm\xE9tico, agregar un campo simple, modificar texto
-- \u{1F7E2} **Poco (2-4 horas):** Agregar campo con validaciones b\xE1sicas, modificar una funci\xF3n existente
-- \u{1F7E1} **Medio (4-8 horas):** Cambios que tocan 2-3 archivos, agregar l\xF3gica de negocio nueva, modificar API endpoint
-- \u{1F7E0} **Alto (8-16 horas):** Cambios que tocan m\xFAltiples capas (frontend + backend + BD), refactor de componente complejo, agregar feature completa con tests
-- \u{1F534} **Muy alto (16+ horas):** Cambios arquitect\xF3nicos, migraci\xF3n de datos, integraci\xF3n con sistemas externos complejos
-
-**Estimaci\xF3n realista:** [X-Y horas] de desarrollo
-[Justificaci\xF3n breve de por qu\xE9 esa estimaci\xF3n. Ej: "4-6 horas porque toca 3 archivos en 2 m\xF3dulos diferentes y requiere actualizar tests"]
+**Archivos a modificar:** [N\xFAmero exacto]
+**M\xF3dulos afectados:** [Lista de m\xF3dulos]
+**Esfuerzo estimado:** [Usa la escala: \u{1F7E2} Muy poco (1-2h) | \u{1F7E2} Poco (2-4h) | \u{1F7E1} Medio (4-8h) | \u{1F7E0} Alto (8-16h) | \u{1F534} Muy alto (16h+)]
+**Estimaci\xF3n realista:** [X-Y horas] con justificaci\xF3n breve
 
 ## \u{1F4A1} Estrategia sugerida
-
-**Enfoque recomendado:** [Describe en 1-2 oraciones la estrategia general. Ej: "Agregar el campo en el frontend, actualizar el modelo, modificar el servicio para enviarlo al backend, y actualizar el endpoint para recibirlo"]
-
-### Ventajas y desventajas del enfoque recomendado
-
-**Ventajas:** [Lista 2-3 ventajas CONCRETAS y ESPEC\xCDFICAS de este enfoque. No uses frases gen\xE9ricas como "es m\xE1s limpio". Ej: "No requiere cambios en la base de datos", "Mantiene compatibilidad con versiones anteriores", "Reutiliza validaciones existentes"]
-
-**Desventajas:** [Lista 1-2 desventajas CONCRETAS. Ej: "Requiere actualizar 3 tests existentes", "Aumenta el payload de la API en 1 campo", "No resuelve la deuda t\xE9cnica del componente"]
-
-### Alternativas consideradas (si aplica)
-[Si existe otra forma viable de resolverlo, menci\xF3nala brevemente. Ej: "Alternativa: usar un campo gen\xE9rico 'metadata' en JSON. Descartada porque pierde validaci\xF3n en frontend"]
+**Enfoque recomendado:** [Describe la estrategia general]
+**Ventajas:** [2-3 ventajas CONCRETAS]
+**Desventajas:** [1-2 desventajas CONCRETAS]
+**Alternativas consideradas:** [Si aplica]
 
 ## \u{1F680} Plan de implementaci\xF3n
-
 Lista los pasos en orden de ejecuci\xF3n. Cada paso debe ser ACCIONABLE y ESPEC\xCDFICO:
 
 **Paso 1:** [Qu\xE9 hacer] en \`[ruta/archivo.ts]\`
-- **Acci\xF3n:** [Verbo espec\xEDfico: "Agregar", "Modificar", "Crear", "Eliminar"]
-- **Detalle:** [Qu\xE9 exactamente cambiar. Ej: "Agregar propiedad 'regimenFiscal: string' a la interface"]
-- **C\xF3digo ejemplo:** [Si es relevante, muestra un snippet de 2-3 l\xEDneas]
-
-**Paso 2:** [Qu\xE9 hacer] en \`[ruta/archivo.ts]\`
-- **Acci\xF3n:** [Verbo espec\xEDfico]
+- **Acci\xF3n:** [Agregar | Modificar | Crear | Eliminar]
 - **Detalle:** [Qu\xE9 exactamente cambiar]
-- **C\xF3digo ejemplo:** [Si aplica]
+- **C\xF3digo ejemplo:** [Si es relevante, snippet de 2-3 l\xEDneas]
 
-[Contin\xFAa con todos los pasos necesarios...]
+**Paso 2:** [Continuar...]
 
 **Paso final:** Verificaci\xF3n
 - **Acci\xF3n:** Ejecutar tests y validar cambios
-- **Detalle:** [Qu\xE9 tests correr, qu\xE9 validar manualmente]
+- **Detalle:** [Qu\xE9 tests correr, qu\xE9 validar]
 
-## \uFE0F Observaciones adicionales
-[Si encontraste deuda t\xE9cnica, riesgos, o algo importante que el equipo deber\xEDa saber pero no es parte del plan directo. Ej: "El componente formulario tiene 800 l\xEDneas y ser\xEDa bueno refactorizarlo, pero eso es fuera del alcance de este issue"]
+## Observaciones adicionales
+[Deuda t\xE9cnica, riesgos, o algo importante que el equipo deber\xEDa saber]
 
 ## Reglas importantes
-
-### Sobre la investigaci\xF3n
-- S\xE9 espec\xEDfico con nombres de archivos, funciones y variables. No inventes nada que no hayas verificado con las herramientas.
-- Si el issue es vago o le falta contexto, p\xEDdelo expl\xEDcitamente al desarrollador en la secci\xF3n "Investigaci\xF3n".
-- Si encuentras deuda t\xE9cnica en la zona que valga la pena considerar, menci\xF3nala en "Observaciones adicionales".
-
-### Sobre la estrategia
-- La investigaci\xF3n, la estrategia y el plan tienen el mismo peso. No es solo generar un plan, es dar contexto para decidir informadamente.
-- Las ventajas y desventajas deben ser CONCRETAS y ESPEC\xCDFICAS del caso, no gen\xE9ricas.
-- Si hay m\xFAltiples enfoques viables, menciona el alternativo brevemente.
-
-### Sobre el plan
-- Cada paso debe ser ACCIONABLE: un desarrollador debe poder ejecutarlo sin dudas.
-- Incluye la ruta exacta del archivo en cada paso.
-- Especifica QU\xC9 cambiar (no solo "modificar el archivo", sino "agregar campo X en la l\xEDnea Y").
-- Si un paso requiere c\xF3digo, muestra un snippet m\xEDnimo de ejemplo.
-
-### Sobre la estimaci\xF3n
-- La estimaci\xF3n de horas debe ser REALISTA. Usa estos rangos como referencia:
-   - Cambio simple de un campo en formulario con validaciones: 2-4 horas
-   - Cambio que toca API + servicio + base de datos + tests: 8-16 horas
-   - Feature completa con m\xFAltiples componentes: 16-40 horas
-- No infles ni minimices. Si no est\xE1s seguro, da un rango (ej: "4-6 horas").
-- Justifica brevemente por qu\xE9 esa estimaci\xF3n.
-
-## Si no encuentras el c\xF3digo del repositorio
-
-Si tus herramientas de exploraci\xF3n (listDir, readFile, searchCode, getFileTree, gitDiff) no encuentran archivos del repositorio:
-
-1. NO generes an\xE1lisis ni inventes informaci\xF3n. Sin acceso al c\xF3digo real no puedes hacer tu trabajo.
-2. NO intentes clonar el repositorio con git ni uses comandos externos. Tus \xFAnicas herramientas son las 5 listadas arriba.
-3. En tu respuesta, explica claramente al usuario que el c\xF3digo no est\xE1 disponible y sugiere agregar \`actions/checkout@v4\` antes de usar el Issue Scout Agent.
-
-Ejemplo de respuesta en este caso:
-"\u26A0\uFE0F No pude acceder al c\xF3digo del repositorio. Mis herramientas de exploraci\xF3n no encontraron archivos. Para que pueda investigar, aseg\xFArate de que el workflow incluya \`actions/checkout@v4\` antes de ejecutar Issue Scout."
-`;
+- NO uses herramientas - solo genera texto
+- Cada paso debe ser ACCIONABLE: un desarrollador debe poder ejecutarlo sin dudas
+- Incluye la ruta exacta del archivo en cada paso
+- Especifica QU\xC9 cambiar (no solo "modificar el archivo")
+- Las ventajas y desventajas deben ser CONCRETAS y ESPEC\xCDFICAS del caso
+- La estimaci\xF3n debe ser REALISTA y justificada`;
 
 // src/application/services/agent.service.ts
 var AgentService = class {
@@ -63143,29 +63098,55 @@ var AgentService = class {
     this.logger.info("Starting investigation", { title: issueTitle });
     const model = ProviderFactory.create(this.config);
     try {
-      const result = await generateText({
+      this.logger.info("Phase 1: Exploring codebase with tools");
+      const exploreResult = await generateText({
         model,
-        system: SYSTEM_PROMPT,
-        prompt: this.buildInvestigatePrompt(issueTitle, issueBody),
+        system: EXPLORE_SYSTEM_PROMPT,
+        prompt: this.buildExplorePrompt(issueTitle, issueBody),
         tools: this.buildTools(),
-        stopWhen: stepCountIs(this.config.AI_MAX_ITERATIONS),
-        temperature: this.config.AI_TEMPERATURE,
-        maxOutputTokens: this.config.AI_MAX_TOKENS
+        stopWhen: stepCountIs(999),
+        temperature: this.config.AI_TEMPERATURE
       });
-      this.logger.info("Investigation completed", {
-        tokensUsed: result.usage?.totalTokens,
-        steps: result.steps?.length
+      const context4 = exploreResult.text?.trim() || "No se gener\xF3 resumen de exploraci\xF3n.";
+      this.logger.info("Phase 1 completed", {
+        steps: exploreResult.steps?.length,
+        tokens: exploreResult.usage?.totalTokens,
+        contextLength: context4.length
       });
       if (this.config.DEBUG_PROMPTS) {
-        this.logger.debug("Full response", { text: result.text });
+        this.logger.debug("Exploration context", { text: context4 });
       }
-      return result.text;
+      this.logger.info("Phase 2: Generating plan");
+      let plan = "";
+      let attempt = 0;
+      const maxAttempts = 3;
+      while (!plan && attempt < maxAttempts) {
+        attempt++;
+        this.logger.info(`Plan generation attempt ${attempt}/${maxAttempts}`);
+        const planResult = await generateText({
+          model,
+          system: GENERATE_SYSTEM_PROMPT,
+          prompt: this.buildGeneratePlanPrompt(issueTitle, issueBody, context4, attempt > 1),
+          // Sin tools - todo el presupuesto va al texto
+          temperature: this.config.AI_TEMPERATURE
+        });
+        plan = planResult.text?.trim() ?? "";
+        if (!plan && attempt < maxAttempts) {
+          this.logger.warn("Plan generation returned empty, retrying", { attempt });
+        }
+      }
+      if (!plan) {
+        this.logger.warn("All plan generation attempts failed");
+        return "\n\n\u26A0\uFE0F **No se pudo generar un plan t\xE9cnico.** El modelo no produjo respuesta despu\xE9s de varios intentos. Puedes intentar:\n- Ejecutar `/update` para regenerar\n- Usar `/investigate [componente]` para investigar un \xE1rea espec\xEDfica";
+      }
+      this.logger.info("Plan generated successfully", { attempts: attempt, length: plan.length });
+      return plan;
     } catch (error41) {
       this.logger.error("AI investigation call failed", {
         title: issueTitle,
         error: error41 instanceof Error ? error41.message : String(error41),
         stack: error41 instanceof Error ? error41.stack : void 0,
-        cause: error41 instanceof Error && error41.cause ? JSON.stringify(error41.cause) : void 0,
+        cause: error41 instanceof Error ? JSON.stringify(error41.cause) : void 0,
         provider: this.config.AI_PROVIDER,
         model: this.config.AI_MODEL,
         baseURL: this.config.AI_BASE_URL
@@ -63180,15 +63161,34 @@ var AgentService = class {
     try {
       const result = await generateText({
         model,
-        system: SYSTEM_PROMPT,
+        system: GENERATE_SYSTEM_PROMPT,
         prompt: this.buildCommandPrompt(command, issueTitle, issueBody),
         tools: this.buildTools(),
-        stopWhen: stepCountIs(this.config.AI_MAX_ITERATIONS),
-        temperature: this.config.AI_TEMPERATURE,
-        maxOutputTokens: this.config.AI_MAX_TOKENS
+        stopWhen: stepCountIs(999),
+        temperature: this.config.AI_TEMPERATURE
       });
+      let response = result.text?.trim() ?? "";
+      let attempt = 0;
+      while (!response && attempt < 2) {
+        attempt++;
+        this.logger.warn("Command response empty, retrying", { attempt });
+        const retryResult = await generateText({
+          model,
+          system: GENERATE_SYSTEM_PROMPT,
+          prompt: `El comando anterior no gener\xF3 respuesta. Usando este contexto:
+
+T\xEDtulo: ${issueTitle}
+Descripci\xF3n: ${issueBody || "Sin descripci\xF3n"}
+
+Comando: ${command}
+
+Responde AHORA sin usar herramientas.`,
+          temperature: this.config.AI_TEMPERATURE
+        });
+        response = retryResult.text?.trim() ?? "";
+      }
       return {
-        response: result.text,
+        response: response || "No se pudo generar respuesta.",
         wasUpdate: isUpdate
       };
     } catch (error41) {
@@ -63196,7 +63196,7 @@ var AgentService = class {
         command,
         error: error41 instanceof Error ? error41.message : String(error41),
         stack: error41 instanceof Error ? error41.stack : void 0,
-        cause: error41 instanceof Error && error41.cause ? JSON.stringify(error41.cause) : void 0,
+        cause: error41 instanceof Error ? JSON.stringify(error41.cause) : void 0,
         provider: this.config.AI_PROVIDER,
         model: this.config.AI_MODEL,
         baseURL: this.config.AI_BASE_URL
@@ -63204,14 +63204,29 @@ var AgentService = class {
       throw error41;
     }
   }
-  buildInvestigatePrompt(title, body) {
+  buildExplorePrompt(title, body) {
     return `## Issue a Investigar
 
 **T\xEDtulo:** ${title}
 
 **Descripci\xF3n:** ${body || "Sin descripci\xF3n proporcionada"}
 
-Por favor, investiga este issue usando las herramientas disponibles y genera un plan t\xE9cnico detallado.`;
+Explora el c\xF3digo del repositorio para entender este issue. Usa las herramientas disponibles para encontrar archivos relevantes, leer su contenido y comprender las relaciones entre componentes. Al final, proporciona un resumen de tus hallazgos.`;
+  }
+  buildGeneratePlanPrompt(title, body, context4, isRetry) {
+    const retryInstruction = isRetry ? "\n\n**IMPORTANTE: El intento anterior no gener\xF3 texto. Debes generar AHORA el plan completo. No uses herramientas, solo escribe el plan.**" : "";
+    return `## Contexto de exploraci\xF3n
+
+**T\xEDtulo del issue:** ${title}
+
+**Descripci\xF3n:** ${body || "Sin descripci\xF3n proporcionada"}
+
+**Hallazgos de la exploraci\xF3n:**
+${context4}
+
+---
+
+Ahora genera el plan t\xE9cnico completo basado en el contexto anterior. NO uses herramientas, solo genera el plan en texto.${retryInstruction}`;
   }
   buildCommandPrompt(command, title, body) {
     const isUpdate = command.trim().toLowerCase() === "/update";
@@ -63222,7 +63237,7 @@ Por favor, investiga este issue usando las herramientas disponibles y genera un 
 
 **Descripci\xF3n original:** ${body || "Sin descripci\xF3n"}
 
-El usuario ha solicitado actualizar el plan de implementaci\xF3n. Re-investiga el c\xF3digo actual (puede haber cambiado desde la \xFAltima revisi\xF3n) y genera un plan actualizado.`;
+El usuario ha solicitado actualizar el plan de implementaci\xF3n. Re-investiga el c\xF3digo actual y genera un plan actualizado.`;
     }
     return `## Comando: ${command}
 
@@ -63437,7 +63452,6 @@ var GitHubServiceAdapter = class {
         owner,
         repo,
         issue_number: issueNumber,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         content: reaction
       });
     } catch (error41) {
@@ -63454,7 +63468,6 @@ var GitHubServiceAdapter = class {
         owner,
         repo,
         comment_id: commentId,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         content: reaction
       });
     } catch (error41) {
@@ -63585,7 +63598,7 @@ var InvestigateIssueUseCase = class {
         title,
         error: error41 instanceof Error ? error41.message : String(error41),
         stack: error41 instanceof Error ? error41.stack : void 0,
-        cause: error41 instanceof Error && error41.cause ? JSON.stringify(error41.cause) : void 0
+        cause: error41 instanceof Error ? JSON.stringify(error41.cause) : void 0
       });
       await this.githubService.createComment(
         owner,
@@ -63670,7 +63683,7 @@ var HandleCommandUseCase = class {
         issueNumber: issueNumber.toString(),
         error: error41 instanceof Error ? error41.message : String(error41),
         stack: error41 instanceof Error ? error41.stack : void 0,
-        cause: error41 instanceof Error && error41.cause ? JSON.stringify(error41.cause) : void 0
+        cause: error41 instanceof Error ? JSON.stringify(error41.cause) : void 0
       });
       await this.githubService.createComment(
         owner,
@@ -63757,8 +63770,6 @@ async function run() {
     // Optional with defaults in action.yml
     AI_PROVIDER: getInput("ai_provider"),
     AI_TEMPERATURE: getInput("ai_temperature"),
-    AI_MAX_TOKENS: getInput("ai_max_tokens"),
-    AI_MAX_ITERATIONS: getInput("ai_max_iterations"),
     AI_TIMEOUT: getInput("ai_timeout"),
     LOG_LEVEL: getInput("log_level"),
     // Optional without defaults (empty string → undefined para que Zod use .optional())
