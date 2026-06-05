@@ -1,0 +1,46 @@
+name: 'Issue Scout Agent'
+description: 'AI agent that investigates GitHub issues with tool use and generates technical plans'
+author: 'moonslayers'
+
+inputs:
+  ai_provider:
+    description: 'AI provider (openai, anthropic, custom)'
+    required: false
+    default: 'openai'
+  ai_api_key:
+    description: 'API Key del proveedor de IA'
+    required: true
+  ai_base_url:
+    description: 'Base URL del endpoint de IA'
+    required: false
+  ai_model:
+    description: 'Modelo de IA a usar'
+    required: true
+  ai_temperature:
+    description: 'Temperatura de la IA (0.0 - 2.0)'
+    required: false
+    default: '0.3'
+  ai_max_tokens:
+    description: 'Máximo de tokens por respuesta'
+    required: false
+    default: '2000'
+  ai_max_iterations:
+    description: 'Máximo de iteraciones del agent loop'
+    required: false
+    default: '10'
+  ai_timeout:
+    description: 'Timeout para llamadas a IA en segundos'
+    required: false
+    default: '60'
+  github_token:
+    description: 'GitHub Token'
+    required: false
+    default: ${{ github.token }}
+  log_level:
+    description: 'Log level (debug, info, warn, error)'
+    required: false
+    default: 'info'
+
+runs:
+  using: 'node20'
+  main: 'dist/index.js'
