@@ -45,7 +45,7 @@ async function run(): Promise<void> {
 
   // Inicializar servicios
   const agentService = new AgentService(config, logger);
-  const githubService = new GitHubServiceAdapter(config.GITHUB_TOKEN);
+  const githubService = new GitHubServiceAdapter(config.GITHUB_TOKEN, logger);
 
   // Inicializar casos de uso (comparten el planCommentId a través del HandleCommandUseCase)
   const handleCommandUseCase = new HandleCommandUseCase(

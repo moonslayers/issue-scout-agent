@@ -54,7 +54,10 @@ export class HandleCommandUseCase {
     } catch (error) {
       this.logger.error('Command handling failed', {
         command: command.type,
+        issueNumber: issueNumber.toString(),
         error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        cause: error instanceof Error && (error as any).cause ? JSON.stringify((error as any).cause) : undefined,
       });
 
       await this.githubService.createComment(

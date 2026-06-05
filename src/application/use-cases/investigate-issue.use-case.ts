@@ -50,7 +50,10 @@ export class InvestigateIssueUseCase {
     } catch (error) {
       this.logger.error('Investigation failed', {
         issueNumber: issueNumber.toString(),
+        title,
         error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        cause: error instanceof Error && (error as any).cause ? JSON.stringify((error as any).cause) : undefined,
       });
 
       // Publicar error como comentario

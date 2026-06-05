@@ -83,5 +83,5 @@ Tests inject fake env vars (`AI_API_KEY=sk-test-key`, `AI_PROVIDER=openai`, `AI_
 - Comments wrapped with `wrapPlan()` (private in `GitHubServiceAdapter`): header `🤖 Plan Técnico Generado por Issue Scout` + footer disclaimer.
 
 ## ALWAYS DO:
-- siempre que termines una tarea valida que corran todas las pruebas, type-check, el lint y que compile antes de decir que ya esta terminado
+- siempre que termines una tarea valida que corran todas las pruebas, type-check y el lint antes de decir que ya esta terminado
 - NUNCA modifiques el dist/ directamente, un action hace el release y build al detectar cambio de version si lo modificas puede generar conflictos

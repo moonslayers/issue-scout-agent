@@ -1,10 +1,14 @@
 import { Octokit } from '@octokit/rest';
 import { IGitHubService } from '../../application/interfaces/github-service.interface';
+import { ILogger } from '../../shared/logger/logger.interface';
 
 export class GitHubServiceAdapter implements IGitHubService {
   private readonly octokit: Octokit;
 
-  constructor(token: string) {
+  constructor(
+    private readonly token: string,
+    private readonly logger: ILogger
+  ) {
     this.octokit = new Octokit({ auth: token });
   }
 
@@ -66,7 +70,11 @@ export class GitHubServiceAdapter implements IGitHubService {
         content: reaction as any,
       });
     } catch (error) {
-      console.warn(`No se pudo reaccionar al issue: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.warn('No se pudo reaccionar al issue', {
+        issueNumber,
+        reaction,
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
@@ -85,7 +93,11 @@ export class GitHubServiceAdapter implements IGitHubService {
         content: reaction as any,
       });
     } catch (error) {
-      console.warn(`No se pudo reaccionar al comentario: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.warn('No se pudo reaccionar al comentario', {
+        commentId,
+        reaction,
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
@@ -103,7 +115,11 @@ export class GitHubServiceAdapter implements IGitHubService {
         labels: [label],
       });
     } catch (error) {
-      console.warn(`No se pudo agregar label: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.warn('No se pudo agregar label', {
+        issueNumber,
+        label,
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
@@ -121,7 +137,11 @@ export class GitHubServiceAdapter implements IGitHubService {
         name: label,
       });
     } catch (error) {
-      console.warn(`No se pudo remover label: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.warn('No se pudo remover label', {
+        issueNumber,
+        label,
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 

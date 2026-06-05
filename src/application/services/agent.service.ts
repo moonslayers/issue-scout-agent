@@ -27,26 +27,39 @@ export class AgentService {
 
     const model = ProviderFactory.create(this.config);
 
-    const result = await generateText({
-      model,
-      system: SYSTEM_PROMPT,
-      prompt: this.buildInvestigatePrompt(issueTitle, issueBody),
-      tools: this.buildTools(),
-      stopWhen: stepCountIs(this.config.AI_MAX_ITERATIONS),
-      temperature: this.config.AI_TEMPERATURE,
-      maxOutputTokens: this.config.AI_MAX_TOKENS,
-    });
+    try {
+      const result = await generateText({
+        model,
+        system: SYSTEM_PROMPT,
+        prompt: this.buildInvestigatePrompt(issueTitle, issueBody),
+        tools: this.buildTools(),
+        stopWhen: stepCountIs(this.config.AI_MAX_ITERATIONS),
+        temperature: this.config.AI_TEMPERATURE,
+        maxOutputTokens: this.config.AI_MAX_TOKENS,
+      });
 
-    this.logger.info('Investigation completed', {
-      tokensUsed: result.usage?.totalTokens,
-      steps: result.steps?.length,
-    });
+      this.logger.info('Investigation completed', {
+        tokensUsed: result.usage?.totalTokens,
+        steps: result.steps?.length,
+      });
 
-    if (this.config.DEBUG_PROMPTS) {
-      this.logger.debug('Full response', { text: result.text });
+      if (this.config.DEBUG_PROMPTS) {
+        this.logger.debug('Full response', { text: result.text });
+      }
+
+      return result.text;
+    } catch (error) {
+      this.logger.error('AI investigation call failed', {
+        title: issueTitle,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        cause: error instanceof Error && (error as any).cause ? JSON.stringify((error as any).cause) : undefined,
+        provider: this.config.AI_PROVIDER,
+        model: this.config.AI_MODEL,
+        baseURL: this.config.AI_BASE_URL,
+      });
+      throw error;
     }
-
-    return result.text;
   }
 
   async handleCommand(command: string, issueTitle: string, issueBody: string): Promise<{ response: string; wasUpdate: boolean }> {
@@ -55,20 +68,33 @@ export class AgentService {
     const model = ProviderFactory.create(this.config);
     const isUpdate = command.trim().toLowerCase() === '/update';
 
-    const result = await generateText({
-      model,
-      system: SYSTEM_PROMPT,
-      prompt: this.buildCommandPrompt(command, issueTitle, issueBody),
-      tools: this.buildTools(),
-      stopWhen: stepCountIs(this.config.AI_MAX_ITERATIONS),
-      temperature: this.config.AI_TEMPERATURE,
-      maxOutputTokens: this.config.AI_MAX_TOKENS,
-    });
+    try {
+      const result = await generateText({
+        model,
+        system: SYSTEM_PROMPT,
+        prompt: this.buildCommandPrompt(command, issueTitle, issueBody),
+        tools: this.buildTools(),
+        stopWhen: stepCountIs(this.config.AI_MAX_ITERATIONS),
+        temperature: this.config.AI_TEMPERATURE,
+        maxOutputTokens: this.config.AI_MAX_TOKENS,
+      });
 
-    return {
-      response: result.text,
-      wasUpdate: isUpdate,
-    };
+      return {
+        response: result.text,
+        wasUpdate: isUpdate,
+      };
+    } catch (error) {
+      this.logger.error('AI command call failed', {
+        command,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        cause: error instanceof Error && (error as any).cause ? JSON.stringify((error as any).cause) : undefined,
+        provider: this.config.AI_PROVIDER,
+        model: this.config.AI_MODEL,
+        baseURL: this.config.AI_BASE_URL,
+      });
+      throw error;
+    }
   }
 
   private buildInvestigatePrompt(title: string, body: string): string {
