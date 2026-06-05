@@ -28516,7 +28516,7 @@ var NEVER = INVALID;
 // src/shared/config/environment.config.ts
 var envSchema = external_exports.object({
   // AI Provider
-  AI_PROVIDER: external_exports.enum(["openai", "anthropic", "custom"]).default("openai"),
+  AI_PROVIDER: external_exports.enum(["openai", "anthropic", "deepseek", "custom"]).default("openai"),
   AI_API_KEY: external_exports.string().min(1, "AI_API_KEY is required"),
   AI_BASE_URL: external_exports.string().url().optional(),
   AI_MODEL: external_exports.string().min(1, "AI_MODEL is required"),
@@ -62036,6 +62036,792 @@ function createAnthropic(options = {}) {
 }
 var anthropic = createAnthropic();
 
+// node_modules/@ai-sdk/deepseek/dist/index.mjs
+function convertToDeepSeekChatMessages({
+  prompt,
+  responseFormat,
+  modelId
+}) {
+  var _a21;
+  const isDeepSeekV4 = modelId.includes("deepseek-v4");
+  const messages = [];
+  const warnings = [];
+  if ((responseFormat == null ? void 0 : responseFormat.type) === "json") {
+    if (responseFormat.schema == null) {
+      messages.push({
+        role: "system",
+        content: "Return JSON."
+      });
+    } else {
+      messages.push({
+        role: "system",
+        content: "Return JSON that conforms to the following schema: " + JSON.stringify(responseFormat.schema)
+      });
+      warnings.push({
+        type: "compatibility",
+        feature: "responseFormat JSON schema",
+        details: "JSON response schema is injected into the system message."
+      });
+    }
+  }
+  let lastUserMessageIndex = -1;
+  for (let i = prompt.length - 1; i >= 0; i--) {
+    if (prompt[i].role === "user") {
+      lastUserMessageIndex = i;
+      break;
+    }
+  }
+  let index = -1;
+  for (const { role, content } of prompt) {
+    index++;
+    switch (role) {
+      case "system": {
+        messages.push({ role: "system", content });
+        break;
+      }
+      case "user": {
+        let userContent = "";
+        for (const part of content) {
+          if (part.type === "text") {
+            userContent += part.text;
+          } else {
+            warnings.push({
+              type: "unsupported",
+              feature: `user message part type: ${part.type}`
+            });
+          }
+        }
+        messages.push({
+          role: "user",
+          content: userContent
+        });
+        break;
+      }
+      case "assistant": {
+        let text2 = "";
+        let reasoning;
+        const toolCalls = [];
+        for (const part of content) {
+          switch (part.type) {
+            case "text": {
+              text2 += part.text;
+              break;
+            }
+            case "reasoning": {
+              if (index <= lastUserMessageIndex && !isDeepSeekV4) {
+                break;
+              }
+              if (reasoning == null) {
+                reasoning = part.text;
+              } else {
+                reasoning += part.text;
+              }
+              break;
+            }
+            case "tool-call": {
+              toolCalls.push({
+                id: part.toolCallId,
+                type: "function",
+                function: {
+                  name: part.toolName,
+                  arguments: JSON.stringify(part.input)
+                }
+              });
+              break;
+            }
+          }
+        }
+        messages.push({
+          role: "assistant",
+          content: text2,
+          reasoning_content: reasoning != null ? reasoning : isDeepSeekV4 ? "" : void 0,
+          tool_calls: toolCalls.length > 0 ? toolCalls : void 0
+        });
+        break;
+      }
+      case "tool": {
+        for (const toolResponse of content) {
+          if (toolResponse.type === "tool-approval-response") {
+            continue;
+          }
+          const output = toolResponse.output;
+          let contentValue;
+          switch (output.type) {
+            case "text":
+            case "error-text":
+              contentValue = output.value;
+              break;
+            case "execution-denied":
+              contentValue = (_a21 = output.reason) != null ? _a21 : "Tool execution denied.";
+              break;
+            case "content":
+            case "json":
+            case "error-json":
+              contentValue = JSON.stringify(output.value);
+              break;
+          }
+          messages.push({
+            role: "tool",
+            tool_call_id: toolResponse.toolCallId,
+            content: contentValue
+          });
+        }
+        break;
+      }
+      default: {
+        warnings.push({
+          type: "unsupported",
+          feature: `message role: ${role}`
+        });
+        break;
+      }
+    }
+  }
+  return { messages, warnings };
+}
+function convertDeepSeekUsage(usage) {
+  var _a21, _b17, _c, _d, _e;
+  if (usage == null) {
+    return {
+      inputTokens: {
+        total: void 0,
+        noCache: void 0,
+        cacheRead: void 0,
+        cacheWrite: void 0
+      },
+      outputTokens: {
+        total: void 0,
+        text: void 0,
+        reasoning: void 0
+      },
+      raw: void 0
+    };
+  }
+  const promptTokens = (_a21 = usage.prompt_tokens) != null ? _a21 : 0;
+  const completionTokens = (_b17 = usage.completion_tokens) != null ? _b17 : 0;
+  const cacheReadTokens = (_c = usage.prompt_cache_hit_tokens) != null ? _c : 0;
+  const reasoningTokens = (_e = (_d = usage.completion_tokens_details) == null ? void 0 : _d.reasoning_tokens) != null ? _e : 0;
+  return {
+    inputTokens: {
+      total: promptTokens,
+      noCache: promptTokens - cacheReadTokens,
+      cacheRead: cacheReadTokens,
+      cacheWrite: void 0
+    },
+    outputTokens: {
+      total: completionTokens,
+      text: completionTokens - reasoningTokens,
+      reasoning: reasoningTokens
+    },
+    raw: usage
+  };
+}
+var tokenUsageSchema = external_exports2.object({
+  prompt_tokens: external_exports2.number().nullish(),
+  completion_tokens: external_exports2.number().nullish(),
+  prompt_cache_hit_tokens: external_exports2.number().nullish(),
+  prompt_cache_miss_tokens: external_exports2.number().nullish(),
+  total_tokens: external_exports2.number().nullish(),
+  completion_tokens_details: external_exports2.object({
+    reasoning_tokens: external_exports2.number().nullish()
+  }).nullish()
+}).nullish();
+var deepSeekErrorSchema = external_exports2.object({
+  error: external_exports2.object({
+    message: external_exports2.string(),
+    type: external_exports2.string().nullish(),
+    param: external_exports2.any().nullish(),
+    code: external_exports2.union([external_exports2.string(), external_exports2.number()]).nullish()
+  })
+});
+var deepseekChatResponseSchema = external_exports2.object({
+  id: external_exports2.string().nullish(),
+  created: external_exports2.number().nullish(),
+  model: external_exports2.string().nullish(),
+  choices: external_exports2.array(
+    external_exports2.object({
+      message: external_exports2.object({
+        role: external_exports2.literal("assistant").nullish(),
+        content: external_exports2.string().nullish(),
+        reasoning_content: external_exports2.string().nullish(),
+        tool_calls: external_exports2.array(
+          external_exports2.object({
+            id: external_exports2.string().nullish(),
+            function: external_exports2.object({
+              name: external_exports2.string(),
+              arguments: external_exports2.string()
+            })
+          })
+        ).nullish()
+      }),
+      finish_reason: external_exports2.string().nullish()
+    })
+  ),
+  usage: tokenUsageSchema
+});
+var deepseekChatChunkSchema = lazySchema(
+  () => zodSchema(
+    external_exports2.union([
+      external_exports2.object({
+        id: external_exports2.string().nullish(),
+        created: external_exports2.number().nullish(),
+        model: external_exports2.string().nullish(),
+        choices: external_exports2.array(
+          external_exports2.object({
+            delta: external_exports2.object({
+              role: external_exports2.enum(["assistant"]).nullish(),
+              content: external_exports2.string().nullish(),
+              reasoning_content: external_exports2.string().nullish(),
+              tool_calls: external_exports2.array(
+                external_exports2.object({
+                  index: external_exports2.number(),
+                  id: external_exports2.string().nullish(),
+                  function: external_exports2.object({
+                    name: external_exports2.string().nullish(),
+                    arguments: external_exports2.string().nullish()
+                  })
+                })
+              ).nullish()
+            }).nullish(),
+            finish_reason: external_exports2.string().nullish()
+          })
+        ),
+        usage: tokenUsageSchema
+      }),
+      deepSeekErrorSchema
+    ])
+  )
+);
+var deepseekLanguageModelOptions = external_exports2.object({
+  /**
+   * Type of thinking to use. Defaults to `enabled`.
+   *
+   * See https://api-docs.deepseek.com/guides/thinking_mode for the
+   * `adaptive` option, which lets the model decide when to think.
+   */
+  thinking: external_exports2.object({
+    type: external_exports2.enum(["adaptive", "enabled", "disabled"]).optional()
+  }).optional(),
+  /**
+   * Controls the thinking strength for DeepSeek V4 reasoning models.
+   *
+   * DeepSeek's API accepts `low`, `medium`, `high`, `xhigh`, and `max`.
+   * Per their docs, `low` and `medium` are mapped to `high`, and `xhigh`
+   * is mapped to `max` server-side for compatibility with other providers.
+   */
+  reasoningEffort: external_exports2.enum(["low", "medium", "high", "xhigh", "max"]).optional()
+});
+function prepareTools2({
+  tools,
+  toolChoice
+}) {
+  tools = (tools == null ? void 0 : tools.length) ? tools : void 0;
+  const toolWarnings = [];
+  if (tools == null) {
+    return { tools: void 0, toolChoice: void 0, toolWarnings };
+  }
+  const deepseekTools = [];
+  for (const tool2 of tools) {
+    if (tool2.type === "provider") {
+      toolWarnings.push({
+        type: "unsupported",
+        feature: `provider-defined tool ${tool2.id}`
+      });
+    } else {
+      deepseekTools.push({
+        type: "function",
+        function: {
+          name: tool2.name,
+          description: tool2.description,
+          parameters: tool2.inputSchema,
+          ...tool2.strict != null ? { strict: tool2.strict } : {}
+        }
+      });
+    }
+  }
+  if (toolChoice == null) {
+    return { tools: deepseekTools, toolChoice: void 0, toolWarnings };
+  }
+  const type = toolChoice == null ? void 0 : toolChoice.type;
+  switch (type) {
+    case "auto":
+    case "none":
+    case "required":
+      return { tools: deepseekTools, toolChoice: type, toolWarnings };
+    case "tool":
+      return {
+        tools: deepseekTools,
+        toolChoice: {
+          type: "function",
+          function: { name: toolChoice.toolName }
+        },
+        toolWarnings
+      };
+    default: {
+      return {
+        tools: deepseekTools,
+        toolChoice: void 0,
+        toolWarnings: [
+          ...toolWarnings,
+          {
+            type: "unsupported",
+            feature: `tool choice type: ${type}`
+          }
+        ]
+      };
+    }
+  }
+}
+function getResponseMetadata3({
+  id,
+  model,
+  created
+}) {
+  return {
+    id: id != null ? id : void 0,
+    modelId: model != null ? model : void 0,
+    timestamp: created != null ? new Date(created * 1e3) : void 0
+  };
+}
+function mapDeepSeekFinishReason(finishReason) {
+  switch (finishReason) {
+    case "stop":
+      return "stop";
+    case "length":
+      return "length";
+    case "content_filter":
+      return "content-filter";
+    case "tool_calls":
+      return "tool-calls";
+    case "insufficient_system_resource":
+      return "error";
+    default:
+      return "other";
+  }
+}
+var DeepSeekChatLanguageModel = class {
+  constructor(modelId, config2) {
+    this.specificationVersion = "v3";
+    this.supportedUrls = {};
+    this.modelId = modelId;
+    this.config = config2;
+    this.failedResponseHandler = createJsonErrorResponseHandler({
+      errorSchema: deepSeekErrorSchema,
+      errorToMessage: (error41) => error41.error.message
+    });
+  }
+  get provider() {
+    return this.config.provider;
+  }
+  get providerOptionsName() {
+    return this.config.provider.split(".")[0].trim();
+  }
+  async getArgs({
+    prompt,
+    maxOutputTokens,
+    temperature,
+    topP,
+    topK,
+    frequencyPenalty,
+    presencePenalty,
+    providerOptions,
+    stopSequences,
+    responseFormat,
+    seed,
+    toolChoice,
+    tools
+  }) {
+    var _a21, _b17;
+    const deepseekOptions = (_a21 = await parseProviderOptions({
+      provider: this.providerOptionsName,
+      providerOptions,
+      schema: deepseekLanguageModelOptions
+    })) != null ? _a21 : {};
+    const { messages, warnings } = convertToDeepSeekChatMessages({
+      prompt,
+      responseFormat,
+      modelId: this.modelId
+    });
+    if (topK != null) {
+      warnings.push({ type: "unsupported", feature: "topK" });
+    }
+    if (seed != null) {
+      warnings.push({ type: "unsupported", feature: "seed" });
+    }
+    const {
+      tools: deepseekTools,
+      toolChoice: deepseekToolChoices,
+      toolWarnings
+    } = prepareTools2({
+      tools,
+      toolChoice
+    });
+    const thinking = ((_b17 = deepseekOptions.thinking) == null ? void 0 : _b17.type) != null ? { type: deepseekOptions.thinking.type } : void 0;
+    return {
+      args: {
+        model: this.modelId,
+        max_tokens: maxOutputTokens,
+        temperature,
+        top_p: topP,
+        frequency_penalty: frequencyPenalty,
+        presence_penalty: presencePenalty,
+        response_format: (responseFormat == null ? void 0 : responseFormat.type) === "json" ? { type: "json_object" } : void 0,
+        stop: stopSequences,
+        messages,
+        tools: deepseekTools,
+        tool_choice: deepseekToolChoices,
+        thinking,
+        ...(thinking == null ? void 0 : thinking.type) !== "disabled" && deepseekOptions.reasoningEffort != null && {
+          reasoning_effort: deepseekOptions.reasoningEffort
+        }
+      },
+      warnings: [...warnings, ...toolWarnings]
+    };
+  }
+  async doGenerate(options) {
+    var _a21, _b17, _c, _d;
+    const { args, warnings } = await this.getArgs({ ...options });
+    const {
+      responseHeaders,
+      value: responseBody,
+      rawValue: rawResponse
+    } = await postJsonToApi({
+      url: this.config.url({
+        path: "/chat/completions",
+        modelId: this.modelId
+      }),
+      headers: combineHeaders(this.config.headers(), options.headers),
+      body: args,
+      failedResponseHandler: this.failedResponseHandler,
+      successfulResponseHandler: createJsonResponseHandler(
+        deepseekChatResponseSchema
+      ),
+      abortSignal: options.abortSignal,
+      fetch: this.config.fetch
+    });
+    const choice2 = responseBody.choices[0];
+    const content = [];
+    const reasoning = choice2.message.reasoning_content;
+    if (reasoning != null && reasoning.length > 0) {
+      content.push({
+        type: "reasoning",
+        text: reasoning
+      });
+    }
+    if (choice2.message.tool_calls != null) {
+      for (const toolCall of choice2.message.tool_calls) {
+        content.push({
+          type: "tool-call",
+          toolCallId: (_a21 = toolCall.id) != null ? _a21 : generateId(),
+          toolName: toolCall.function.name,
+          input: toolCall.function.arguments
+        });
+      }
+    }
+    const text2 = choice2.message.content;
+    if (text2 != null && text2.length > 0) {
+      content.push({ type: "text", text: text2 });
+    }
+    return {
+      content,
+      finishReason: {
+        unified: mapDeepSeekFinishReason(choice2.finish_reason),
+        raw: (_b17 = choice2.finish_reason) != null ? _b17 : void 0
+      },
+      usage: convertDeepSeekUsage(responseBody.usage),
+      providerMetadata: {
+        [this.providerOptionsName]: {
+          promptCacheHitTokens: (_c = responseBody.usage) == null ? void 0 : _c.prompt_cache_hit_tokens,
+          promptCacheMissTokens: (_d = responseBody.usage) == null ? void 0 : _d.prompt_cache_miss_tokens
+        }
+      },
+      request: { body: args },
+      response: {
+        ...getResponseMetadata3(responseBody),
+        headers: responseHeaders,
+        body: rawResponse
+      },
+      warnings
+    };
+  }
+  async doStream(options) {
+    const { args, warnings } = await this.getArgs({ ...options });
+    const body = {
+      ...args,
+      stream: true,
+      stream_options: { include_usage: true }
+    };
+    const { responseHeaders, value: response } = await postJsonToApi({
+      url: this.config.url({
+        path: "/chat/completions",
+        modelId: this.modelId
+      }),
+      headers: combineHeaders(this.config.headers(), options.headers),
+      body,
+      failedResponseHandler: this.failedResponseHandler,
+      successfulResponseHandler: createEventSourceResponseHandler(
+        deepseekChatChunkSchema
+      ),
+      abortSignal: options.abortSignal,
+      fetch: this.config.fetch
+    });
+    const toolCalls = [];
+    let finishReason = {
+      unified: "other",
+      raw: void 0
+    };
+    let usage = void 0;
+    let isFirstChunk = true;
+    const providerOptionsName = this.providerOptionsName;
+    let isActiveReasoning = false;
+    let isActiveText = false;
+    return {
+      stream: response.pipeThrough(
+        new TransformStream({
+          start(controller) {
+            controller.enqueue({ type: "stream-start", warnings });
+          },
+          transform(chunk, controller) {
+            var _a21, _b17, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
+            if (options.includeRawChunks) {
+              controller.enqueue({ type: "raw", rawValue: chunk.rawValue });
+            }
+            if (!chunk.success) {
+              finishReason = { unified: "error", raw: void 0 };
+              controller.enqueue({ type: "error", error: chunk.error });
+              return;
+            }
+            const value = chunk.value;
+            if ("error" in value) {
+              finishReason = { unified: "error", raw: void 0 };
+              controller.enqueue({ type: "error", error: value.error.message });
+              return;
+            }
+            if (isFirstChunk) {
+              isFirstChunk = false;
+              controller.enqueue({
+                type: "response-metadata",
+                ...getResponseMetadata3(value)
+              });
+            }
+            if (value.usage != null) {
+              usage = value.usage;
+            }
+            const choice2 = value.choices[0];
+            if ((choice2 == null ? void 0 : choice2.finish_reason) != null) {
+              finishReason = {
+                unified: mapDeepSeekFinishReason(choice2.finish_reason),
+                raw: choice2.finish_reason
+              };
+            }
+            if ((choice2 == null ? void 0 : choice2.delta) == null) {
+              return;
+            }
+            const delta = choice2.delta;
+            const reasoningContent = delta.reasoning_content;
+            if (reasoningContent) {
+              if (!isActiveReasoning) {
+                controller.enqueue({
+                  type: "reasoning-start",
+                  id: "reasoning-0"
+                });
+                isActiveReasoning = true;
+              }
+              controller.enqueue({
+                type: "reasoning-delta",
+                id: "reasoning-0",
+                delta: reasoningContent
+              });
+            }
+            if (delta.content) {
+              if (!isActiveText) {
+                controller.enqueue({ type: "text-start", id: "txt-0" });
+                isActiveText = true;
+              }
+              if (isActiveReasoning) {
+                controller.enqueue({
+                  type: "reasoning-end",
+                  id: "reasoning-0"
+                });
+                isActiveReasoning = false;
+              }
+              controller.enqueue({
+                type: "text-delta",
+                id: "txt-0",
+                delta: delta.content
+              });
+            }
+            if (delta.tool_calls != null) {
+              if (isActiveReasoning) {
+                controller.enqueue({
+                  type: "reasoning-end",
+                  id: "reasoning-0"
+                });
+                isActiveReasoning = false;
+              }
+              for (const toolCallDelta of delta.tool_calls) {
+                const index = toolCallDelta.index;
+                if (toolCalls[index] == null) {
+                  if (toolCallDelta.id == null) {
+                    throw new InvalidResponseDataError({
+                      data: toolCallDelta,
+                      message: `Expected 'id' to be a string.`
+                    });
+                  }
+                  if (((_a21 = toolCallDelta.function) == null ? void 0 : _a21.name) == null) {
+                    throw new InvalidResponseDataError({
+                      data: toolCallDelta,
+                      message: `Expected 'function.name' to be a string.`
+                    });
+                  }
+                  controller.enqueue({
+                    type: "tool-input-start",
+                    id: toolCallDelta.id,
+                    toolName: toolCallDelta.function.name
+                  });
+                  toolCalls[index] = {
+                    id: toolCallDelta.id,
+                    type: "function",
+                    function: {
+                      name: toolCallDelta.function.name,
+                      arguments: (_b17 = toolCallDelta.function.arguments) != null ? _b17 : ""
+                    },
+                    hasFinished: false
+                  };
+                  const toolCall2 = toolCalls[index];
+                  if (((_c = toolCall2.function) == null ? void 0 : _c.name) != null && ((_d = toolCall2.function) == null ? void 0 : _d.arguments) != null) {
+                    if (toolCall2.function.arguments.length > 0) {
+                      controller.enqueue({
+                        type: "tool-input-delta",
+                        id: toolCall2.id,
+                        delta: toolCall2.function.arguments
+                      });
+                    }
+                    if (isParsableJson(toolCall2.function.arguments)) {
+                      controller.enqueue({
+                        type: "tool-input-end",
+                        id: toolCall2.id
+                      });
+                      controller.enqueue({
+                        type: "tool-call",
+                        toolCallId: (_e = toolCall2.id) != null ? _e : generateId(),
+                        toolName: toolCall2.function.name,
+                        input: toolCall2.function.arguments
+                      });
+                      toolCall2.hasFinished = true;
+                    }
+                  }
+                  continue;
+                }
+                const toolCall = toolCalls[index];
+                if (toolCall.hasFinished) {
+                  continue;
+                }
+                if (((_f = toolCallDelta.function) == null ? void 0 : _f.arguments) != null) {
+                  toolCall.function.arguments += (_h = (_g = toolCallDelta.function) == null ? void 0 : _g.arguments) != null ? _h : "";
+                }
+                controller.enqueue({
+                  type: "tool-input-delta",
+                  id: toolCall.id,
+                  delta: (_i = toolCallDelta.function.arguments) != null ? _i : ""
+                });
+                if (((_j = toolCall.function) == null ? void 0 : _j.name) != null && ((_k = toolCall.function) == null ? void 0 : _k.arguments) != null && isParsableJson(toolCall.function.arguments)) {
+                  controller.enqueue({
+                    type: "tool-input-end",
+                    id: toolCall.id
+                  });
+                  controller.enqueue({
+                    type: "tool-call",
+                    toolCallId: (_l = toolCall.id) != null ? _l : generateId(),
+                    toolName: toolCall.function.name,
+                    input: toolCall.function.arguments
+                  });
+                  toolCall.hasFinished = true;
+                }
+              }
+            }
+          },
+          flush(controller) {
+            var _a21, _b17, _c;
+            if (isActiveReasoning) {
+              controller.enqueue({ type: "reasoning-end", id: "reasoning-0" });
+            }
+            if (isActiveText) {
+              controller.enqueue({ type: "text-end", id: "txt-0" });
+            }
+            for (const toolCall of toolCalls.filter(
+              (toolCall2) => !toolCall2.hasFinished
+            )) {
+              controller.enqueue({
+                type: "tool-input-end",
+                id: toolCall.id
+              });
+              controller.enqueue({
+                type: "tool-call",
+                toolCallId: (_a21 = toolCall.id) != null ? _a21 : generateId(),
+                toolName: toolCall.function.name,
+                input: toolCall.function.arguments
+              });
+            }
+            controller.enqueue({
+              type: "finish",
+              finishReason,
+              usage: convertDeepSeekUsage(usage),
+              providerMetadata: {
+                [providerOptionsName]: {
+                  promptCacheHitTokens: (_b17 = usage == null ? void 0 : usage.prompt_cache_hit_tokens) != null ? _b17 : void 0,
+                  promptCacheMissTokens: (_c = usage == null ? void 0 : usage.prompt_cache_miss_tokens) != null ? _c : void 0
+                }
+              }
+            });
+          }
+        })
+      ),
+      request: { body },
+      response: { headers: responseHeaders }
+    };
+  }
+};
+var VERSION13 = true ? "2.0.35" : "0.0.0-test";
+function createDeepSeek(options = {}) {
+  var _a21;
+  const baseURL = withoutTrailingSlash(
+    (_a21 = options.baseURL) != null ? _a21 : "https://api.deepseek.com"
+  );
+  const getHeaders = () => withUserAgentSuffix(
+    {
+      Authorization: `Bearer ${loadApiKey({
+        apiKey: options.apiKey,
+        environmentVariableName: "DEEPSEEK_API_KEY",
+        description: "DeepSeek API key"
+      })}`,
+      ...options.headers
+    },
+    `ai-sdk/deepseek/${VERSION13}`
+  );
+  const createLanguageModel = (modelId) => {
+    return new DeepSeekChatLanguageModel(modelId, {
+      provider: `deepseek.chat`,
+      url: ({ path }) => `${baseURL}${path}`,
+      headers: getHeaders,
+      fetch: options.fetch
+    });
+  };
+  const provider = (modelId) => createLanguageModel(modelId);
+  provider.specificationVersion = "v3";
+  provider.languageModel = createLanguageModel;
+  provider.chat = createLanguageModel;
+  provider.embeddingModel = (modelId) => {
+    throw new NoSuchModelError({ modelId, modelType: "embeddingModel" });
+  };
+  provider.textEmbeddingModel = provider.embeddingModel;
+  provider.imageModel = (modelId) => {
+    throw new NoSuchModelError({ modelId, modelType: "imageModel" });
+  };
+  return provider;
+}
+var deepseek = createDeepSeek();
+
 // src/infrastructure/ai/provider-factory.ts
 var ProviderFactory = class {
   static create(config2) {
@@ -62044,9 +62830,13 @@ var ProviderFactory = class {
         return createOpenAI({
           apiKey: config2.AI_API_KEY,
           baseURL: config2.AI_BASE_URL || "https://api.openai.com/v1"
-        })(config2.AI_MODEL);
+        }).chat(config2.AI_MODEL);
       case "anthropic":
         return createAnthropic({
+          apiKey: config2.AI_API_KEY
+        })(config2.AI_MODEL);
+      case "deepseek":
+        return createDeepSeek({
           apiKey: config2.AI_API_KEY
         })(config2.AI_MODEL);
       case "custom":
@@ -62056,7 +62846,7 @@ var ProviderFactory = class {
         return createOpenAI({
           apiKey: config2.AI_API_KEY,
           baseURL: config2.AI_BASE_URL
-        })(config2.AI_MODEL);
+        }).chat(config2.AI_MODEL);
       default:
         throw new Error(`Unsupported AI provider: ${config2.AI_PROVIDER}`);
     }
@@ -62425,7 +63215,7 @@ Responde al comando del usuario basado en el contexto del issue y el c\xF3digo d
 };
 
 // node_modules/@octokit/plugin-request-log/dist-src/version.js
-var VERSION13 = "6.0.0";
+var VERSION14 = "6.0.0";
 
 // node_modules/@octokit/plugin-request-log/dist-src/index.js
 function requestLog(octokit) {
@@ -62449,15 +63239,15 @@ function requestLog(octokit) {
     });
   });
 }
-requestLog.VERSION = VERSION13;
+requestLog.VERSION = VERSION14;
 
 // node_modules/@octokit/rest/dist-src/version.js
-var VERSION14 = "22.0.1";
+var VERSION15 = "22.0.1";
 
 // node_modules/@octokit/rest/dist-src/index.js
 var Octokit2 = Octokit.plugin(requestLog, legacyRestEndpointMethods, paginateRest).defaults(
   {
-    userAgent: `octokit-rest.js/${VERSION14}`
+    userAgent: `octokit-rest.js/${VERSION15}`
   }
 );
 
