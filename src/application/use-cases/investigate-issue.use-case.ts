@@ -5,6 +5,8 @@ import { ILogger } from '../../shared/logger/logger.interface';
 import { EnvConfig } from '../../shared/config/environment.config';
 import { Templates, Labels } from '../../shared/templates/scout-templates';
 
+type ErrorWithCause = Error & { cause?: unknown };
+
 export class InvestigateIssueUseCase {
   constructor(
     private readonly agentService: AgentService,
@@ -51,7 +53,7 @@ export class InvestigateIssueUseCase {
         title,
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
-        cause: error instanceof Error && (error as any).cause ? JSON.stringify((error as any).cause) : undefined,
+        cause: error instanceof Error ? JSON.stringify((error as ErrorWithCause).cause) : undefined,
       });
 
       // Publicar error como comentario

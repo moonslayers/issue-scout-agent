@@ -5,6 +5,8 @@ import { IGitHubService } from '../interfaces/github-service.interface';
 import { ILogger } from '../../shared/logger/logger.interface';
 import { Templates, Labels } from '../../shared/templates/scout-templates';
 
+type ErrorWithCause = Error & { cause?: unknown };
+
 export class HandleCommandUseCase {
   constructor(
     private readonly agentService: AgentService,
@@ -49,7 +51,7 @@ export class HandleCommandUseCase {
         issueNumber: issueNumber.toString(),
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
-        cause: error instanceof Error && (error as any).cause ? JSON.stringify((error as any).cause) : undefined,
+        cause: error instanceof Error ? JSON.stringify((error as ErrorWithCause).cause) : undefined,
       });
 
       await this.githubService.createComment(

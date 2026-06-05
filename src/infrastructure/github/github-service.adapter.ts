@@ -1,5 +1,5 @@
 import { Octokit } from '@octokit/rest';
-import { IGitHubService } from '../../application/interfaces/github-service.interface';
+import { IGitHubService, ReactionContent } from '../../application/interfaces/github-service.interface';
 import { ILogger } from '../../shared/logger/logger.interface';
 import { Templates } from '../../shared/templates/scout-templates';
 
@@ -60,15 +60,14 @@ export class GitHubServiceAdapter implements IGitHubService {
     owner: string,
     repo: string,
     issueNumber: number,
-    reaction: string
+    reaction: ReactionContent
   ): Promise<void> {
     try {
       await this.octokit.reactions.createForIssue({
         owner,
         repo,
         issue_number: issueNumber,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        content: reaction as any,
+        content: reaction,
       });
     } catch (error) {
       this.logger.warn('No se pudo reaccionar al issue', {
@@ -83,15 +82,14 @@ export class GitHubServiceAdapter implements IGitHubService {
     owner: string,
     repo: string,
     commentId: number,
-    reaction: string
+    reaction: ReactionContent
   ): Promise<void> {
     try {
       await this.octokit.reactions.createForIssueComment({
         owner,
         repo,
         comment_id: commentId,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        content: reaction as any,
+        content: reaction,
       });
     } catch (error) {
       this.logger.warn('No se pudo reaccionar al comentario', {

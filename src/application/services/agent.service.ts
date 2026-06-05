@@ -10,6 +10,8 @@ import { GetFileTreeTool } from '../../infrastructure/ai/tools/get-file-tree.too
 import { GitDiffTool } from '../../infrastructure/ai/tools/git-diff.tool';
 import { EXPLORE_SYSTEM_PROMPT, GENERATE_SYSTEM_PROMPT } from '../../infrastructure/ai/prompts/system-prompt';
 
+type ErrorWithCause = Error & { cause?: unknown };
+
 export class AgentService {
   private readonly listDirTool = new ListDirTool();
   private readonly readFileTool = new ReadFileTool();
@@ -97,7 +99,7 @@ export class AgentService {
         title: issueTitle,
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
-        cause: error instanceof Error && (error as any).cause ? JSON.stringify((error as any).cause) : undefined,
+        cause: error instanceof Error ? JSON.stringify((error as ErrorWithCause).cause) : undefined,
         provider: this.config.AI_PROVIDER,
         model: this.config.AI_MODEL,
         baseURL: this.config.AI_BASE_URL,
@@ -149,7 +151,7 @@ export class AgentService {
         command,
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
-        cause: error instanceof Error && (error as any).cause ? JSON.stringify((error as any).cause) : undefined,
+        cause: error instanceof Error ? JSON.stringify((error as ErrorWithCause).cause) : undefined,
         provider: this.config.AI_PROVIDER,
         model: this.config.AI_MODEL,
         baseURL: this.config.AI_BASE_URL,

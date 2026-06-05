@@ -13,8 +13,7 @@
 export interface ScoutTemplate {
   id: string;
   title: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  build: (...args: any[]) => string;
+  build: (...args: string[]) => string;
 }
 
 /** Footer de marca para todos los comentarios publicados por Issue Scout */
