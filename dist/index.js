@@ -62115,17 +62115,19 @@ var import_child_process2 = require("child_process");
 var DEFAULT_EXTENSIONS = ["ts", "tsx", "js", "jsx", "json", "yml", "yaml", "md"];
 var SearchCodeTool = class {
   name = "searchCode";
-  description = "Busca texto en el c\xF3digo usando grep. Busca en archivos .ts, .tsx, .js, .jsx, .json, .yml, .yaml, .md por defecto";
+  description = "Busca texto en el c\xF3digo usando ripgrep. Busca en archivos .ts, .tsx, .js, .jsx, .json, .yml, .yaml, .md por defecto";
   parameters = external_exports.object({
     query: external_exports.string().describe('Texto a buscar (ej: "function calculateTotal")'),
     filePattern: external_exports.string().optional().describe('Patr\xF3n de archivos (opcional, ej: "*.ts")'),
-    maxResults: external_exports.number().optional().default(20).describe("M\xE1ximo de resultados a retornar")
+    maxResults: external_exports.number().optional().default(20).describe("M\xE1ximo de resultados a retornar"),
+    searchPath: external_exports.string().optional().default(".").describe("Ruta donde buscar (default: directorio actual)")
   });
   async execute(params) {
     try {
       const maxResults = params.maxResults ?? 20;
-      const includeFlags = params.filePattern ? `--include="${params.filePattern}"` : DEFAULT_EXTENSIONS.map((ext) => `--include=*.${ext}`).join(" ");
-      const cmd = `grep -rl ${includeFlags} "${params.query}" . | head -${maxResults}`;
+      const searchPath = params.searchPath ?? ".";
+      const glob = params.filePattern ? `-g "${params.filePattern}"` : DEFAULT_EXTENSIONS.map((ext) => `-g "*.${ext}"`).join(" ");
+      const cmd = `rg -l ${glob} "${params.query}" "${searchPath}" | head -${maxResults}`;
       const output = (0, import_child_process2.execSync)(cmd, { encoding: "utf-8", timeout: 15e3 });
       return output || "No se encontraron resultados";
     } catch (error41) {
@@ -62170,14 +62172,16 @@ var GitDiffTool = class {
     base: external_exports.string().optional().default("HEAD~1").describe("Referencia base (commit, branch, tag)"),
     head: external_exports.string().optional().default("HEAD").describe("Referencia head"),
     path: external_exports.string().optional().describe("Ruta espec\xEDfica para filtrar el diff"),
-    maxLines: external_exports.number().optional().default(200).describe("M\xE1ximo de l\xEDneas del diff a retornar")
+    maxLines: external_exports.number().optional().default(200).describe("M\xE1ximo de l\xEDneas del diff a retornar"),
+    gitDir: external_exports.string().optional().default(".").describe("Directorio del repositorio git (default: directorio actual)")
   });
   async execute(params) {
     try {
       const base = params.base ?? "HEAD~1";
       const head = params.head ?? "HEAD";
       const maxLines = params.maxLines ?? 200;
-      let cmd = `git diff ${base}...${head} 2>/dev/null`;
+      const gitDir = params.gitDir ?? ".";
+      let cmd = `git -C "${gitDir}" diff ${base}...${head} 2>/dev/null`;
       if (params.path) {
         cmd += ` -- "${params.path}"`;
       }
