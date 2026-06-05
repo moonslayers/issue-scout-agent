@@ -26,8 +26,9 @@ const envSchema = z.object({
 
 export type EnvConfig = z.infer<typeof envSchema>;
 
-export function loadConfig(): EnvConfig {
-  const result = envSchema.safeParse(process.env);
+export function loadConfig(overrides?: Record<string, string | undefined>): EnvConfig {
+  const env = { ...process.env, ...overrides };
+  const result = envSchema.safeParse(env);
 
   if (!result.success) {
     console.error('❌ Invalid environment variables:');
