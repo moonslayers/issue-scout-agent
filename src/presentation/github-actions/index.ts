@@ -26,8 +26,6 @@ async function run(): Promise<void> {
     // Optional with defaults in action.yml
     AI_PROVIDER: core.getInput('ai_provider'),
     AI_TEMPERATURE: core.getInput('ai_temperature'),
-    AI_MAX_TOKENS: core.getInput('ai_max_tokens'),
-    AI_MAX_ITERATIONS: core.getInput('ai_max_iterations'),
     AI_TIMEOUT: core.getInput('ai_timeout'),
     LOG_LEVEL: core.getInput('log_level'),
 

@@ -9,8 +9,6 @@ const envSchema = z.object({
 
   // AI Behavior
   AI_TEMPERATURE: z.coerce.number().min(0).max(2).default(0.3),
-  AI_MAX_TOKENS: z.coerce.number().int().positive().default(2000),
-  AI_MAX_ITERATIONS: z.coerce.number().int().positive().default(10),
   AI_TIMEOUT: z.coerce.number().int().positive().default(60),
 
   // GitHub

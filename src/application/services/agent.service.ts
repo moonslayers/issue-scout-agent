@@ -8,7 +8,7 @@ import { ReadFileTool } from '../../infrastructure/ai/tools/read-file.tool';
 import { SearchCodeTool } from '../../infrastructure/ai/tools/search-code.tool';
 import { GetFileTreeTool } from '../../infrastructure/ai/tools/get-file-tree.tool';
 import { GitDiffTool } from '../../infrastructure/ai/tools/git-diff.tool';
-import { SYSTEM_PROMPT } from '../../infrastructure/ai/prompts/system-prompt';
+import { EXPLORE_SYSTEM_PROMPT, GENERATE_SYSTEM_PROMPT } from '../../infrastructure/ai/prompts/system-prompt';
 
 export class AgentService {
   private readonly listDirTool = new ListDirTool();
@@ -28,26 +28,70 @@ export class AgentService {
     const model = ProviderFactory.create(this.config);
 
     try {
-      const result = await generateText({
+      // ============================================
+      // Fase 1: Exploración con herramientas
+      // Sin maxOutputTokens (incluye thinking + tools + texto)
+      // Sin stopWhen (el modelo decide cuándo terminar)
+      // maxSteps alto como safety net
+      // ============================================
+      this.logger.info('Phase 1: Exploring codebase with tools');
+      const exploreResult = await generateText({
         model,
-        system: SYSTEM_PROMPT,
-        prompt: this.buildInvestigatePrompt(issueTitle, issueBody),
+        system: EXPLORE_SYSTEM_PROMPT,
+        prompt: this.buildExplorePrompt(issueTitle, issueBody),
         tools: this.buildTools(),
-        stopWhen: stepCountIs(this.config.AI_MAX_ITERATIONS),
+        stopWhen: stepCountIs(999),
         temperature: this.config.AI_TEMPERATURE,
-        maxOutputTokens: this.config.AI_MAX_TOKENS,
       });
 
-      this.logger.info('Investigation completed', {
-        tokensUsed: result.usage?.totalTokens,
-        steps: result.steps?.length,
+      const context = exploreResult.text?.trim() || 'No se generó resumen de exploración.';
+
+      this.logger.info('Phase 1 completed', {
+        steps: exploreResult.steps?.length,
+        tokens: exploreResult.usage?.totalTokens,
+        contextLength: context.length,
       });
 
       if (this.config.DEBUG_PROMPTS) {
-        this.logger.debug('Full response', { text: result.text });
+        this.logger.debug('Exploration context', { text: context });
       }
 
-      return result.text;
+      // ============================================
+      // Fase 2: Generación del plan SIN herramientas
+      // Con reintento hasta 3 veces si sale vacío
+      // Sin thinking/reasoning para ahorrar tokens
+      // ============================================
+      this.logger.info('Phase 2: Generating plan');
+      let plan = '';
+      let attempt = 0;
+      const maxAttempts = 3;
+
+      while (!plan && attempt < maxAttempts) {
+        attempt++;
+        this.logger.info(`Plan generation attempt ${attempt}/${maxAttempts}`);
+
+        const planResult = await generateText({
+          model,
+          system: GENERATE_SYSTEM_PROMPT,
+          prompt: this.buildGeneratePlanPrompt(issueTitle, issueBody, context, attempt > 1),
+          // Sin tools - todo el presupuesto va al texto
+          temperature: this.config.AI_TEMPERATURE,
+        });
+
+        plan = planResult.text?.trim() ?? '';
+
+        if (!plan && attempt < maxAttempts) {
+          this.logger.warn('Plan generation returned empty, retrying', { attempt });
+        }
+      }
+
+      if (!plan) {
+        this.logger.warn('All plan generation attempts failed');
+        return '\n\n⚠️ **No se pudo generar un plan técnico.** El modelo no produjo respuesta después de varios intentos. Puedes intentar:\n- Ejecutar `/update` para regenerar\n- Usar `/investigate [componente]` para investigar un área específica';
+      }
+
+      this.logger.info('Plan generated successfully', { attempts: attempt, length: plan.length });
+      return plan;
     } catch (error) {
       this.logger.error('AI investigation call failed', {
         title: issueTitle,
@@ -71,16 +115,33 @@ export class AgentService {
     try {
       const result = await generateText({
         model,
-        system: SYSTEM_PROMPT,
+        system: GENERATE_SYSTEM_PROMPT,
         prompt: this.buildCommandPrompt(command, issueTitle, issueBody),
         tools: this.buildTools(),
-        stopWhen: stepCountIs(this.config.AI_MAX_ITERATIONS),
+        stopWhen: stepCountIs(999),
         temperature: this.config.AI_TEMPERATURE,
-        maxOutputTokens: this.config.AI_MAX_TOKENS,
       });
 
+      let response = result.text?.trim() ?? '';
+
+      // Reintento si la respuesta está vacía
+      let attempt = 0;
+      while (!response && attempt < 2) {
+        attempt++;
+        this.logger.warn('Command response empty, retrying', { attempt });
+
+        const retryResult = await generateText({
+          model,
+          system: GENERATE_SYSTEM_PROMPT,
+          prompt: `El comando anterior no generó respuesta. Usando este contexto:\n\nTítulo: ${issueTitle}\nDescripción: ${issueBody || 'Sin descripción'}\n\nComando: ${command}\n\nResponde AHORA sin usar herramientas.`,
+          temperature: this.config.AI_TEMPERATURE,
+        });
+
+        response = retryResult.text?.trim() ?? '';
+      }
+
       return {
-        response: result.text,
+        response: response || 'No se pudo generar respuesta.',
         wasUpdate: isUpdate,
       };
     } catch (error) {
@@ -97,15 +158,23 @@ export class AgentService {
     }
   }
 
-  private buildInvestigatePrompt(title: string, body: string): string {
-    return `## Issue a Investigar\n\n**Título:** ${title}\n\n**Descripción:** ${body || 'Sin descripción proporcionada'}\n\nPor favor, investiga este issue usando las herramientas disponibles y genera un plan técnico detallado.`;
+  private buildExplorePrompt(title: string, body: string): string {
+    return `## Issue a Investigar\n\n**Título:** ${title}\n\n**Descripción:** ${body || 'Sin descripción proporcionada'}\n\nExplora el código del repositorio para entender este issue. Usa las herramientas disponibles para encontrar archivos relevantes, leer su contenido y comprender las relaciones entre componentes. Al final, proporciona un resumen de tus hallazgos.`;
+  }
+
+  private buildGeneratePlanPrompt(title: string, body: string, context: string, isRetry: boolean): string {
+    const retryInstruction = isRetry
+      ? '\n\n**IMPORTANTE: El intento anterior no generó texto. Debes generar AHORA el plan completo. No uses herramientas, solo escribe el plan.**'
+      : '';
+
+    return `## Contexto de exploración\n\n**Título del issue:** ${title}\n\n**Descripción:** ${body || 'Sin descripción proporcionada'}\n\n**Hallazgos de la exploración:**\n${context}\n\n---\n\nAhora genera el plan técnico completo basado en el contexto anterior. NO uses herramientas, solo genera el plan en texto.${retryInstruction}`;
   }
 
   private buildCommandPrompt(command: string, title: string, body: string): string {
     const isUpdate = command.trim().toLowerCase() === '/update';
 
     if (isUpdate) {
-      return `## Comando: /update - Actualizar Plan\n\n**Issue:** ${title}\n\n**Descripción original:** ${body || 'Sin descripción'}\n\nEl usuario ha solicitado actualizar el plan de implementación. Re-investiga el código actual (puede haber cambiado desde la última revisión) y genera un plan actualizado.`;
+      return `## Comando: /update - Actualizar Plan\n\n**Issue:** ${title}\n\n**Descripción original:** ${body || 'Sin descripción'}\n\nEl usuario ha solicitado actualizar el plan de implementación. Re-investiga el código actual y genera un plan actualizado.`;
     }
 
     return `## Comando: ${command}\n\n**Contexto del Issue:**\n**Título:** ${title}\n**Descripción:** ${body || 'Sin descripción'}\n\nResponde al comando del usuario basado en el contexto del issue y el código del repositorio.`;

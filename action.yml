@@ -20,14 +20,6 @@ inputs:
     description: 'Temperatura de la IA (0.0 - 2.0)'
     required: false
     default: '0.3'
-  ai_max_tokens:
-    description: 'Máximo de tokens por respuesta'
-    required: false
-    default: '2000'
-  ai_max_iterations:
-    description: 'Máximo de iteraciones del agent loop'
-    required: false
-    default: '10'
   ai_timeout:
     description: 'Timeout para llamadas a IA en segundos'
     required: false
