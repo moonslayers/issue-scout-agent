@@ -1,98 +1,16 @@
 name: CI
 
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
+  push:
+    branches: [main]
+    paths-ignore:
+      - '.github/workflows/release.yml'
+
+permissions:
+  contents: read
 
 jobs:
   test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Type check
-        run: npm run type-check
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Unit tests
-        run: npm run test:unit
-        env:
-          AI_API_KEY: 'sk-test-key'
-          AI_PROVIDER: 'openai'
-          AI_MODEL: 'gpt-4-turbo'
-          GITHUB_TOKEN: 'test-token'
-          GITHUB_REPOSITORY_OWNER: 'test-owner'
-          GITHUB_REPOSITORY_NAME: 'test-repo'
-
-      - name: Integration tests
-        run: npm run test:integration
-        env:
-          AI_API_KEY: 'sk-test-key'
-          AI_PROVIDER: 'openai'
-          AI_MODEL: 'gpt-4-turbo'
-          GITHUB_TOKEN: 'test-token'
-          GITHUB_REPOSITORY_OWNER: 'test-owner'
-          GITHUB_REPOSITORY_NAME: 'test-repo'
-
-      - name: Build
-        run: npm run build
-
-      - name: Upload coverage
-        uses: codecov/codecov-action@v3
-        with:
-          files: ./coverage/lcov.info
-          fail_ci_if_error: false
-
-      # ==========================================
-      # Auto-commit dist/ on push to main
-      # ==========================================
-      - name: Check for dist changes
-        id: dist-check
-        run: |
-          if [ -n "$(git status --porcelain dist/)" ]; then
-            echo "changed=true" >> $GITHUB_OUTPUT
-          else
-            echo "changed=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Commit dist/ if changed
-        if: steps.dist-check.outputs.changed == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add dist/
-          git commit -m "chore: auto-build dist/ [skip ci]"
-          git push
-
-      # ==========================================
-      # Auto-tag: crea tag vX.Y.Z desde package.json
-      # ==========================================
-      - name: Auto-tag if version changed
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: |
-          VERSION=$(node -p "require('./package.json').version")
-          TAG="v$VERSION"
-          if ! git rev-parse "$TAG" >/dev/null 2>&1; then
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git tag "$TAG"
-            git push origin "$TAG"
-            echo "✅ Tag created: $TAG"
-          else
-            echo "⏭️  Tag $TAG already exists, skipping"
-          fi
+    uses: ./.github/workflows/test.yml
