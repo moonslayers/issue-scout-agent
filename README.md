@@ -8,7 +8,7 @@ AI agent that investigates GitHub issues and generates detailed technical plans 
 - 📝 **Technical plan generation** — Detailed plans with affected files, implementation steps, and considerations
 - 💬 **Command support** — Interact with the agent using commands in issue comments
 - 🔄 **Plan updates** — `/update` command re-investigates and updates the original plan comment
-- 🤖 **Multi-provider** — Supports OpenAI, Anthropic, and custom OpenAI-compatible endpoints
+- 🤖 **Multi-provider** — Supports OpenAI, Anthropic, and any OpenAI-compatible endpoint
 - 🛠️ **Tool use** — The agent uses tools to explore code:
   - `listDir` — List files in a directory
   - `readFile` — Read file content (smart head/tail truncation)
@@ -22,6 +22,7 @@ AI agent that investigates GitHub issues and generates detailed technical plans 
 
 Create `.github/workflows/issue-scout.yml`:
 
+**OpenAI:**
 ```yaml
 name: Issue Scout
 on:
@@ -39,24 +40,61 @@ jobs:
     steps:
       - uses: moonslayers/issue-scout-agent@v1
         with:
-          ai_provider: ${{ secrets.AI_PROVIDER }}
-          ai_api_key: ${{ secrets.AI_API_KEY }}
-          ai_model: ${{ secrets.AI_MODEL }}
+          ai_provider: openai
+          ai_api_key: ${{ secrets.OPENAI_API_KEY }}
+          ai_model: gpt-4-turbo
+```
+
+**Anthropic:**
+```yaml
+steps:
+  - uses: moonslayers/issue-scout-agent@v1
+    with:
+      ai_provider: anthropic
+      ai_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+      ai_model: claude-3-sonnet-20240229
+```
+
+**DeepSeek (OpenAI-compatible):**
+```yaml
+steps:
+  - uses: moonslayers/issue-scout-agent@v1
+    with:
+      ai_provider: openai
+      ai_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
+      ai_base_url: https://api.deepseek.com/v1
+      ai_model: deepseek-chat
 ```
 
 ### 2. Configure secrets
 
-Add these secrets to your repository:
+Add these secrets to your GitHub repository (`Settings → Secrets and variables → Actions`):
 
-| Secret | Description | Example |
-|--------|-------------|---------|
-| `AI_PROVIDER` | AI provider to use | `openai`, `anthropic`, `custom` |
-| `AI_API_KEY` | API key for the provider | `sk-...` |
-| `AI_MODEL` | Model to use | `gpt-4-turbo`, `claude-3-sonnet-20240229` |
+| Secret | Description |
+|--------|-------------|
+| `OPENAI_API_KEY` | API key for OpenAI |
+| `ANTHROPIC_API_KEY` | API key for Anthropic |
+| `PROVIDER_API_KEY` | API key for custom providers (DeepSeek, etc.) |
 
 ### 3. Create an issue
 
 The agent will automatically investigate and comment with a technical plan.
+
+## Inputs reference
+
+| Input | Description | Required | Default | Examples |
+|-------|-------------|----------|---------|----------|
+| `ai_provider` | AI provider | No | `openai` | `openai`, `anthropic`, `custom` |
+| `ai_api_key` | API key for the provider | **Yes** | — | `sk-...` |
+| `ai_model` | Model to use | **Yes** | — | `gpt-4-turbo`, `claude-3-sonnet-20240229`, `deepseek-chat` |
+| `ai_base_url` | Base URL override (works with `openai` and `custom`) | No | — | `https://api.deepseek.com/v1` |
+| `ai_temperature` | Temperature (0.0 - 2.0) | No | `0.3` | `0.7` |
+| `ai_max_tokens` | Max tokens per response | No | `2000` | `4000` |
+| `ai_max_iterations` | Max agent loop iterations | No | `10` | `15` |
+| `ai_timeout` | Timeout for AI calls (seconds) | No | `60` | `120` |
+| `log_level` | Log level | No | `info` | `debug`, `warn` |
+
+> 💡 Para usar OpenAI-compatible endpoints no-OpenAI (DeepSeek, Ollama, Together AI, etc.) usa `ai_provider: openai` + `ai_base_url`. O bien usa `ai_provider: custom` (requiere `ai_base_url` sí o sí).
 
 ## Commands
 
