@@ -55,14 +55,13 @@ steps:
       ai_model: claude-3-sonnet-20240229
 ```
 
-**DeepSeek (OpenAI-compatible):**
+**DeepSeek (nativo):**
 ```yaml
 steps:
   - uses: moonslayers/issue-scout-agent@v1
     with:
-      ai_provider: openai
+      ai_provider: deepseek
       ai_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
-      ai_base_url: https://api.deepseek.com/v1
       ai_model: deepseek-chat
 ```
 
@@ -84,9 +83,9 @@ The agent will automatically investigate and comment with a technical plan.
 
 | Input | Description | Required | Default | Examples |
 |-------|-------------|----------|---------|----------|
-| `ai_provider` | AI provider | No | `openai` | `openai`, `anthropic`, `custom` |
+| `ai_provider` | AI provider | No | `openai` | `openai`, `anthropic`, `deepseek`, `custom` |
 | `ai_api_key` | API key for the provider | **Yes** | — | `sk-...` |
-| `ai_model` | Model to use | **Yes** | — | `gpt-4-turbo`, `claude-3-sonnet-20240229`, `deepseek-chat` |
+| `ai_model` | Model to use | **Yes** | — | `gpt-4-turbo`, `claude-3-sonnet-20240229`, `deepseek-chat`, `deepseek-reasoner` |
 | `ai_base_url` | Base URL override (works with `openai` and `custom`) | No | — | `https://api.deepseek.com/v1` |
 | `ai_temperature` | Temperature (0.0 - 2.0) | No | `0.3` | `0.7` |
 | `ai_max_tokens` | Max tokens per response | No | `2000` | `4000` |
@@ -94,7 +93,7 @@ The agent will automatically investigate and comment with a technical plan.
 | `ai_timeout` | Timeout for AI calls (seconds) | No | `60` | `120` |
 | `log_level` | Log level | No | `info` | `debug`, `warn` |
 
-> 💡 Para usar OpenAI-compatible endpoints no-OpenAI (DeepSeek, Ollama, Together AI, etc.) usa `ai_provider: openai` + `ai_base_url`. O bien usa `ai_provider: custom` (requiere `ai_base_url` sí o sí).
+> 💡 Para usar OpenAI-compatible endpoints no-OpenAI (Ollama, Together AI, etc.) usa `ai_provider: openai` + `ai_base_url`. O bien usa `ai_provider: custom` (requiere `ai_base_url` sí o sí). DeepSeek tiene su propio provider nativo.
 
 ## Commands
 
