@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "AI agent for GitHub issue investigation with tool use and Vercel AI SDK",
   "main": "dist/index.js",
+  "type": "module",
   "scripts": {
     "build": "tsc",
     "dev": "ts-node src/presentation/github-actions/index.ts",
@@ -30,7 +31,7 @@
     "jest": "^30.4.2",
     "@types/jest": "^30.0.0",
     "ts-jest": "^29.4.11",
-    "eslint": "^8.57.1",
+    "eslint": "^9.0.0",
     "@typescript-eslint/eslint-plugin": "^8.60.1",
     "@typescript-eslint/parser": "^8.60.1",
     "ts-node": "^10.9.2"
