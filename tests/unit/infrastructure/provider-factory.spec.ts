@@ -8,8 +8,6 @@ describe('ProviderFactory', () => {
     AI_MODEL: 'gpt-4-turbo',
     AI_BASE_URL: 'https://api.openai.com/v1',
     AI_TEMPERATURE: 0.3,
-    AI_MAX_TOKENS: 2000,
-    AI_MAX_ITERATIONS: 10,
     AI_TIMEOUT: 60,
     GITHUB_TOKEN: 'test-token',
     GITHUB_REPOSITORY_OWNER: 'test-owner',
