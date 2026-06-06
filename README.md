@@ -33,6 +33,7 @@ on:
 
 jobs:
   scout:
+    if: ${{ github.event.sender.type != 'Bot' && ( github.event_name == 'issues' || github.event.issue.pull_request == null ) }}
     runs-on: ubuntu-latest
     permissions:
       issues: write
@@ -72,11 +73,11 @@ steps:
 
 Add these secrets to your GitHub repository (`Settings → Secrets and variables → Actions`):
 
-| Secret | Description |
-|--------|-------------|
-| `OPENAI_API_KEY` | API key for OpenAI |
-| `ANTHROPIC_API_KEY` | API key for Anthropic |
-| `PROVIDER_API_KEY` | API key for custom providers (DeepSeek, etc.) |
+| Secret              | Description                                   |
+| ------------------- | --------------------------------------------- |
+| `OPENAI_API_KEY`    | API key for OpenAI                            |
+| `ANTHROPIC_API_KEY` | API key for Anthropic                         |
+| `PROVIDER_API_KEY`  | API key for custom providers (DeepSeek, etc.) |
 
 ### 3. Create an issue
 
@@ -84,17 +85,17 @@ The agent will automatically investigate and comment with a technical plan.
 
 ## Inputs reference
 
-| Input | Description | Required | Default | Examples |
-|-------|-------------|----------|---------|----------|
-| `ai_provider` | AI provider | No | `openai` | `openai`, `anthropic`, `deepseek`, `custom` |
-| `ai_api_key` | API key for the provider | **Yes** | — | `sk-...` |
-| `ai_model` | Model to use | **Yes** | — | `gpt-4-turbo`, `claude-3-sonnet-20240229`, `deepseek-chat`, `deepseek-reasoner` |
-| `ai_base_url` | Base URL override (works with `openai` and `custom`) | No | — | `https://api.deepseek.com/v1` |
-| `ai_temperature` | Temperature (0.0 - 2.0) | No | `0.3` | `0.7` |
-| `ai_max_tokens` | Max tokens per response | No | `2000` | `4000` |
-| `ai_max_iterations` | Max agent loop iterations | No | `10` | `15` |
-| `ai_timeout` | Timeout for AI calls (seconds) | No | `60` | `120` |
-| `log_level` | Log level | No | `info` | `debug`, `warn` |
+| Input               | Description                                          | Required | Default  | Examples                                                                        |
+| ------------------- | ---------------------------------------------------- | -------- | -------- | ------------------------------------------------------------------------------- |
+| `ai_provider`       | AI provider                                          | No       | `openai` | `openai`, `anthropic`, `deepseek`, `custom`                                     |
+| `ai_api_key`        | API key for the provider                             | **Yes**  | —        | `sk-...`                                                                        |
+| `ai_model`          | Model to use                                         | **Yes**  | —        | `gpt-4-turbo`, `claude-3-sonnet-20240229`, `deepseek-chat`, `deepseek-reasoner` |
+| `ai_base_url`       | Base URL override (works with `openai` and `custom`) | No       | —        | `https://api.deepseek.com/v1`                                                   |
+| `ai_temperature`    | Temperature (0.0 - 2.0)                              | No       | `0.3`    | `0.7`                                                                           |
+| `ai_max_tokens`     | Max tokens per response                              | No       | `2000`   | `4000`                                                                          |
+| `ai_max_iterations` | Max agent loop iterations                            | No       | `10`     | `15`                                                                            |
+| `ai_timeout`        | Timeout for AI calls (seconds)                       | No       | `60`     | `120`                                                                           |
+| `log_level`         | Log level                                            | No       | `info`   | `debug`, `warn`                                                                 |
 
 > 💡 Para usar OpenAI-compatible endpoints no-OpenAI (Ollama, Together AI, etc.) usa `ai_provider: openai` + `ai_base_url`. O bien usa `ai_provider: custom` (requiere `ai_base_url` sí o sí). DeepSeek tiene su propio provider nativo.
 
@@ -102,11 +103,11 @@ The agent will automatically investigate and comment with a technical plan.
 
 Use these in issue comments:
 
-| Command | Description |
-|---------|-------------|
-| `/ask [question]` | Ask a specific question about the issue |
-| `/update` | Re-investigate and update the plan with latest code changes |
-| `/investigate [component]` | Deep investigation of a specific component |
+| Command                    | Description                                                 |
+| -------------------------- | ----------------------------------------------------------- |
+| `/ask [question]`          | Ask a specific question about the issue                     |
+| `/update`                  | Re-investigate and update the plan with latest code changes |
+| `/investigate [component]` | Deep investigation of a specific component                  |
 
 ### How `/update` works
 
