@@ -63685,9 +63685,7 @@ Se detectaron cambios en el repositorio, pero no afectan el plan actual.
 
 El scout autom\xE1tico est\xE1 desactivado para este repositorio.
 - Si quieres generar un plan t\xE9cnico para este issue, incluye **\`/scout\`** en la descripci\xF3n del issue al crearlo.
-- Tambi\xE9n puedes escribir **\`/update\`** en un comentario m\xE1s adelante para generar o actualizar el plan.
-
-*M\xE1s informaci\xF3n en [Issue Scout Agent](https://github.com/moonslayers/issue-scout-agent)*${SCOUT_BRANDING}`
+- Tambi\xE9n puedes escribir **\`/update\`** en un comentario m\xE1s adelante para generar o actualizar el plan.${SCOUT_BRANDING}`
   }
 };
 var Labels = {
