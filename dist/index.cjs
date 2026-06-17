@@ -28530,9 +28530,9 @@ var envSchema = external_exports.object({
   GITHUB_REPOSITORY_NAME: external_exports.string().min(1, "GITHUB_REPOSITORY_NAME is required"),
   // Logging
   LOG_LEVEL: external_exports.enum(["debug", "info", "warn", "error"]).default("info"),
-  DEBUG_TOOLS: external_exports.coerce.boolean().default(false),
-  DEBUG_PROMPTS: external_exports.coerce.boolean().default(false),
-  AUTOMATIC_SCOUT: external_exports.coerce.boolean().default(false)
+  DEBUG_TOOLS: external_exports.string().default("false").transform((val) => val === "true" || val === "1"),
+  DEBUG_PROMPTS: external_exports.string().default("false").transform((val) => val === "true" || val === "1"),
+  AUTOMATIC_SCOUT: external_exports.string().default("false").transform((val) => val === "true" || val === "1")
 });
 function loadConfig(overrides) {
   const env = { ...process.env, ...overrides };
