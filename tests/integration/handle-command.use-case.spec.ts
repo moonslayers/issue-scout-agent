@@ -11,6 +11,7 @@ const mockAgentService = {
   investigate: jest.fn(),
   handleCommand: jest.fn(),
   updatePlanWithDiff: jest.fn(),
+  handleAsk: jest.fn(),
 } as unknown as jest.Mocked<AgentService>;
 
 const mockGitHubService: jest.Mocked<IGitHubService> = {
@@ -94,12 +95,13 @@ describe('HandleCommandUseCase Integration', () => {
       // Debe comparar commits
       expect(mockGitHubService.compareCommits).toHaveBeenCalledWith('owner', 'repo', oldCommit, newCommit);
 
-      // Debe llamar a updatePlanWithDiff con el plan original + diff
+      // Debe llamar a updatePlanWithDiff con el plan original + diff + comentarios filtrados
       expect(mockAgentService.updatePlanWithDiff).toHaveBeenCalledWith(
         originalPlan,
         expect.objectContaining({ files: expect.arrayContaining([expect.objectContaining({ filename: 'src/foo.ts' })]) }),
         'Issue title',
-        'Issue description'
+        'Issue description',
+        []
       );
 
       // Debe actualizar el comentario del plan con el nuevo version tracker
@@ -259,14 +261,27 @@ describe('HandleCommandUseCase Integration', () => {
 
   describe('/ask command', () => {
     it('should react and reply with answer', async () => {
-      mockAgentService.handleCommand.mockResolvedValue({
+      mockGitHubService.getIssueComments.mockResolvedValue([
+        { id: 10, body: 'Comentario general' },
+        { id: 20, body: `<!-- scout:plan -->\n## 🤖 Plan Técnico Generado por Issue Scout\n\nExisting plan content\n---\n*🕵️ Generado por [Issue Scout Agent](https://github.com/moonslayers/issue-scout-agent)*` },
+      ]);
+      mockAgentService.handleAsk.mockResolvedValue({
         response: 'Answer to the question',
-        wasUpdate: false,
       });
 
       await useCase.execute('owner', 'repo', 1, '/ask What is this?', 'Title', 'Body', 200);
 
       expect(mockGitHubService.reactToComment).toHaveBeenCalled();
+      expect(mockAgentService.handleAsk).toHaveBeenCalledWith(
+        'What is this?',
+        'Title',
+        'Body',
+        expect.arrayContaining([
+          expect.objectContaining({ id: 10 }),
+          expect.objectContaining({ id: 20 }),
+        ]),
+        expect.stringContaining('Existing plan content')
+      );
       expect(mockGitHubService.createComment).toHaveBeenCalledWith(
         'owner', 'repo', 1, Templates.REPLY.build('Answer to the question')
       );

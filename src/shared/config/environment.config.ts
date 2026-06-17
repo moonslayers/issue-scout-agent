@@ -21,6 +21,7 @@ const envSchema = z.object({
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
   DEBUG_TOOLS: z.coerce.boolean().default(false),
   DEBUG_PROMPTS: z.coerce.boolean().default(false),
+  AUTOMATIC_SCOUT: z.coerce.boolean().default(false),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;

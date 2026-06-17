@@ -2,8 +2,8 @@ import { Templates, Labels } from '../../../../src/shared/templates/scout-templa
 
 describe('ScoutTemplates', () => {
   describe('Templates', () => {
-    it('should have all 8 templates defined', () => {
-      expect(Object.keys(Templates)).toHaveLength(8);
+    it('should have all 9 templates defined', () => {
+      expect(Object.keys(Templates)).toHaveLength(9);
     });
 
     it('each template should have id, title and build', () => {

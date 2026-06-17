@@ -8,6 +8,7 @@ import { InvestigateIssueUseCase } from '../../application/use-cases/investigate
 import { HandleCommandUseCase } from '../../application/use-cases/handle-command.use-case';
 import { GitInfoService } from '../../infrastructure/git/git-info.service';
 import { PlanCommentParser } from '../../infrastructure/github/plan-comment-parser';
+import { Templates } from '../../shared/templates/scout-templates';
 import fs from 'fs';
 
 async function run(): Promise<void> {
@@ -34,6 +35,9 @@ async function run(): Promise<void> {
     // Optional without defaults (empty string → undefined para que Zod use .optional())
     AI_BASE_URL: core.getInput('ai_base_url') || undefined,
     AI_PROVIDER_OPTIONS: core.getInput('ai_provider_options') || undefined,
+
+    // Automatic scout on issue open
+    AUTOMATIC_SCOUT: core.getInput('automatic_scout'),
   });
 
   const logger = new ConsoleLogger(config);
@@ -50,6 +54,7 @@ async function run(): Promise<void> {
   const githubService = new GitHubServiceAdapter(config.GITHUB_TOKEN, logger);
   const gitInfoService = new GitInfoService();
   const planCommentParser = new PlanCommentParser();
+  const automaticScout = config.AUTOMATIC_SCOUT;
 
   // Verificar que el código del repositorio esté disponible en el filesystem
   const hasCode = fs.existsSync('package.json') || fs.existsSync('src/');
@@ -88,10 +93,30 @@ async function run(): Promise<void> {
     if (context.eventName === 'issues' && payload.action === 'opened') {
       const issue = payload.issue!;
       const issueNumber = issue.number;
-      const title = issue.title;
-      const body = issue.body || '';
+      let title = issue.title;
+      let body = issue.body || '';
 
-      logger.info('📝 New issue detected', { issueNumber, title });
+      logger.info('📝 New issue detected', { issueNumber, title, automaticScout });
+
+      if (!automaticScout) {
+        const hasScoutCommand = body.includes('/scout') || title.includes('/scout');
+        
+        if (!hasScoutCommand) {
+          logger.info('AUTOMATIC_SCOUT is disabled and no /scout found, posting info comment');
+          await githubService.createComment(
+            owner,
+            repo,
+            issueNumber,
+            Templates.SCOUT_DISABLED.build()
+          );
+          return;
+        }
+
+        // Limpiar /scout del body antes de pasar al use case
+        body = body.replace(/\/scout\s*/i, '').trim();
+        title = title.replace(/\/scout\s*/i, '').trim();
+        logger.info('/scout detected, proceeding with investigation');
+      }
 
       await investigateUseCase.execute(owner, repo, issueNumber, title, body);
     }

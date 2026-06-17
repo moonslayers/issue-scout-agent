@@ -4,7 +4,8 @@ AI agent that investigates GitHub issues and generates detailed technical plans 
 
 ## Features
 
-- 🔍 **Automatic investigation** — When an issue is opened, the agent explores the codebase and generates a technical plan
+- 🔍 **Automatic investigation** — When an issue is opened, the agent explores the codebase and generates a technical plan (can be toggled with `automatic_scout` input)
+- 🚫 **Opt-in via /scout** — By default, auto-scout is disabled. Add `/scout` to your issue description to trigger investigation
 - 📝 **Technical plan generation** — Detailed plans with affected files, implementation steps, and considerations
 - 💬 **Command support** — Interact with the agent using commands in issue comments
 - 🔄 **Plan updates** — `/update` command re-investigates and updates the original plan comment
@@ -81,7 +82,9 @@ Add these secrets to your GitHub repository (`Settings → Secrets and variables
 
 ### 3. Create an issue
 
-The agent will automatically investigate and comment with a technical plan.
+By default, the agent will NOT automatically investigate. To trigger investigation, include **`/scout`** in the issue description.
+
+If `automatic_scout: true` is set in your workflow, the agent will automatically investigate every opened issue.
 
 ## Inputs reference
 
@@ -92,6 +95,7 @@ The agent will automatically investigate and comment with a technical plan.
 | `ai_model`          | Model to use                                         | **Yes**  | —        | `gpt-4-turbo`, `claude-3-sonnet-20240229`, `deepseek-chat`, `deepseek-reasoner` |
 | `ai_base_url`       | Base URL override (works with `openai` and `custom`) | No       | —        | `https://api.deepseek.com/v1`                                                   |
 | `ai_temperature`    | Temperature (0.0 - 2.0)                              | No       | `0.3`    | `0.7`                                                                           |
+| `automatic_scout`   | Enable automatic investigation on opened issues       | No       | `false`  | `true`, `false`                                                                 |
 | `ai_max_tokens`     | Max tokens per response                              | No       | `2000`   | `4000`                                                                          |
 | `ai_max_iterations` | Max agent loop iterations                            | No       | `10`     | `15`                                                                            |
 | `ai_timeout`        | Timeout for AI calls (seconds)                       | No       | `60`     | `120`                                                                           |
@@ -108,6 +112,7 @@ Use these in issue comments:
 | `/ask [question]`          | Ask a specific question about the issue                     |
 | `/update`                  | Re-investigate and update the plan with latest code changes |
 | `/investigate [component]` | Deep investigation of a specific component                  |
+| `/scout` (en descripción del issue) | Opt-in para investigación automática cuando AUTOMATIC_SCOUT está desactivado |
 
 ### How `/update` works
 

@@ -35,6 +35,10 @@ inputs:
     description: 'Log level (debug, info, warn, error)'
     required: false
     default: 'info'
+  automatic_scout:
+    description: 'Enable automatic investigation on opened issues (true) or require /scout in issue body (false)'
+    required: false
+    default: 'false'
 
 runs:
   using: 'node24'

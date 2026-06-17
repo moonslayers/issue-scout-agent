@@ -16,6 +16,7 @@ describe('ProviderFactory', () => {
     LOG_LEVEL: 'info',
     DEBUG_TOOLS: false,
     DEBUG_PROMPTS: false,
+    AUTOMATIC_SCOUT: false,
   };
 
   it('should create an OpenAI provider', () => {

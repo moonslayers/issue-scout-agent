@@ -187,11 +187,17 @@ export class HandleCommandUseCase {
       aheadBy: diff.aheadBy,
     });
 
+    // Filtrar comentarios para no incluir el plan comment ni el trigger comment
+    const filteredComments = comments.filter(
+      (c) => c.id !== planComment.id && c.body !== planComment.body
+    );
+
     const updateResult = await this.agentService.updatePlanWithDiff(
       originalPlanBody,
       diff,
       issueTitle,
-      issueBody
+      issueBody,
+      filteredComments
     );
 
     const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
@@ -250,8 +256,21 @@ export class HandleCommandUseCase {
     // Reaccionar al comentario
     await this.githubService.reactToComment(owner, repo, triggerCommentId, 'eyes');
 
-    // Procesar pregunta
-    const result = await this.agentService.handleCommand(`/ask ${args}`, issueTitle, issueBody);
+    // Obtener todos los comentarios del issue para contexto
+    const comments = await this.githubService.getIssueComments(owner, repo, issueNumber.getValue());
+
+    // Buscar plan existente
+    const planComment = comments.find((c) => c.body.includes(Templates.PLAN.title));
+    const planBody = planComment ? this.planCommentParser.extractPlanBody(planComment.body) : undefined;
+
+    // Procesar pregunta SIN exploración (solo contexto existente)
+    const result = await this.agentService.handleAsk(
+      args,
+      issueTitle,
+      issueBody,
+      comments,
+      planBody
+    );
 
     // Responder con un nuevo comentario
     await this.githubService.createComment(

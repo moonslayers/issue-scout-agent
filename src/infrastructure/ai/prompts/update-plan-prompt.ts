@@ -12,6 +12,7 @@ Recibes:
 1. **PLAN ORIGINAL:** El plan técnico que ya existe (texto completo)
 2. **DIFF:** Los cambios en el código desde que se creó el plan (archivos modificados, añadidos, eliminados)
 3. **ISSUE:** El título y descripción original del issue
+4. **COMENTARIOS DEL ISSUE:** Comentarios adicionales del issue que pueden contener discusiones, aclaraciones o requisitos extra
 
 ## Tu tarea
 Analiza si los cambios en el diff son RELEVANTES para el plan existente.

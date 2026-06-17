@@ -171,11 +171,43 @@ export class AgentService {
     }
   }
 
+  async handleAsk(
+    query: string,
+    issueTitle: string,
+    issueBody: string,
+    allComments: Array<{ id: number; body: string }>,
+    planComment?: string
+  ): Promise<{ response: string }> {
+    this.logger.info('Handling /ask command without exploration', { query });
+
+    const model = ProviderFactory.create(this.config);
+
+    try {
+      const result = await generateText({
+        model,
+        system: GENERATE_SYSTEM_PROMPT,
+        prompt: this.buildAskPrompt(query, issueTitle, issueBody, allComments, planComment),
+        // Intencionalmente SIN tools - solo responde con contexto existente
+        temperature: this.config.AI_TEMPERATURE,
+        providerOptions: this.providerOptions,
+      });
+
+      return { response: result.text?.trim() || 'No se pudo generar respuesta.' };
+    } catch (error) {
+      this.logger.error('AI ask call failed', {
+        query,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
+  }
+
   async updatePlanWithDiff(
     originalPlan: string,
     diff: CompareCommitsResult,
     issueTitle: string,
-    issueBody: string
+    issueBody: string,
+    comments?: Array<{ id: number; body: string }>
   ): Promise<{ response: string; wasUpdate: boolean; wasRelevant: boolean; message?: string }> {
     this.logger.info('Starting incremental plan update', {
       filesChanged: diff.files.length,
@@ -188,7 +220,7 @@ export class AgentService {
       const result = await generateText({
         model,
         system: UPDATE_SYSTEM_PROMPT,
-        prompt: this.buildUpdatePrompt(originalPlan, diff, issueTitle, issueBody),
+        prompt: this.buildUpdatePrompt(originalPlan, diff, issueTitle, issueBody, comments),
         // Sin tools - el trabajo pesado ya está hecho (diff via API)
         temperature: this.config.AI_TEMPERATURE,
         providerOptions: this.providerOptions,
@@ -227,11 +259,35 @@ export class AgentService {
     return `## Comando: ${command}\n\n**Contexto del Issue:**\n**Título:** ${title}\n**Descripción:** ${body || 'Sin descripción'}\n\nResponde al comando del usuario basado en el contexto del issue y el código del repositorio.`;
   }
 
+  private buildAskPrompt(
+    query: string,
+    title: string,
+    body: string,
+    allComments: Array<{ id: number; body: string }>,
+    planComment?: string
+  ): string {
+    // Filtrar comentarios del scout (para no incluir ruido)
+    const relevantComments = allComments.filter(
+      (c) => !c.body.includes('<!-- scout:')
+    );
+
+    const commentsText = relevantComments.length > 0
+      ? relevantComments.map((c) => `[Comentario #${c.id}]: ${c.body}`).join('\n\n')
+      : 'No hay comentarios adicionales.';
+
+    const planSection = planComment
+      ? `\n\n### Plan Técnico Existente\n${planComment}`
+      : '';
+
+    return `## Pregunta: ${query}\n\n**Contexto del Issue:**\n**Título:** ${title}\n**Descripción:** ${body || 'Sin descripción'}\n\n### Comentarios del Issue\n${commentsText}${planSection}\n\n---\n\nResponde la pregunta basándote ÚNICAMENTE en el contexto proporcionado arriba (issue, comentarios y plan existente). NO explores el código ni uses herramientas. Si no puedes responder con la información disponible, indícalo claramente.`;
+  }
+
   private buildUpdatePrompt(
     originalPlan: string,
     diff: CompareCommitsResult,
     issueTitle: string,
-    issueBody: string
+    issueBody: string,
+    comments?: Array<{ id: number; body: string }>
   ): string {
     // Construir resumen legible del diff
     let diffText = `## Resumen\n${diff.summary}\n\n## Archivos cambiados\n`;
@@ -249,7 +305,17 @@ export class AgentService {
       }
     }
 
-    return `## Comando: /update - Actualización incremental del plan\n\n**Issue:** ${issueTitle}\n\n**Descripción original:** ${issueBody || 'Sin descripción'}\n\n### Plan Original\n${originalPlan}\n\n### Cambios detectados en el repositorio\n${diffText}\n\n### Instrucciones\nAnaliza el plan original contra los cambios detectados.\nSi los cambios son relevantes, genera el plan actualizado.\nSi no son relevantes, responde RELEVANCE:NO.`;
+    // Agregar comentarios relevantes si existen
+    let commentsText = '';
+    if (comments && comments.length > 0) {
+      const relevantComments = comments.filter((c) => !c.body.includes('<!-- scout:'));
+      if (relevantComments.length > 0) {
+        commentsText = '\n\n### Comentarios del Issue\n' +
+          relevantComments.map((c) => `[Comentario #${c.id}]: ${c.body}`).join('\n\n');
+      }
+    }
+
+    return `## Comando: /update - Actualización incremental del plan\n\n**Issue:** ${issueTitle}\n\n**Descripción original:** ${issueBody || 'Sin descripción'}\n\n### Plan Original\n${originalPlan}\n\n### Cambios detectados en el repositorio\n${diffText}${commentsText}\n\n### Instrucciones\nAnaliza el plan original contra los cambios detectados.\nSi los cambios son relevantes, genera el plan actualizado.\nSi no son relevantes, responde RELEVANCE:NO.`;
   }
 
   private parseUpdateResult(text: string): { response: string; wasUpdate: boolean; wasRelevant: boolean; message?: string } {
