@@ -89,7 +89,7 @@ export const Templates = {
     id: 'scout-disabled',
     title: '<!-- scout:disabled -->',
     build: (): string =>
-      `<!-- scout:disabled -->\n🕵️ **Scout Automático Desactivado**\n\nEl scout automático está desactivado para este repositorio.\n- Si quieres generar un plan técnico para este issue, incluye **\`/scout\`** en la descripción del issue al crearlo.\n- También puedes escribir **\`/update\`** en un comentario más adelante para generar o actualizar el plan.\n\n*Más información en [Issue Scout Agent](https://github.com/moonslayers/issue-scout-agent)*${SCOUT_BRANDING}`,
+      `<!-- scout:disabled -->\n🕵️ **Scout Automático Desactivado**\n\nEl scout automático está desactivado para este repositorio.\n- Si quieres generar un plan técnico para este issue, incluye **\`/scout\`** en la descripción del issue al crearlo.\n- También puedes escribir **\`/update\`** en un comentario más adelante para generar o actualizar el plan.${SCOUT_BRANDING}`,
   } as ScoutTemplate,
 } as const;
 
